@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif"><defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#0a0e16"/><stop offset="1" stop-color="#0d1117"/>
+  </linearGradient>
+  <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#2dd4bf"/><stop offset="0.5" stop-color="#4493f8"/><stop offset="1" stop-color="#2dd4bf"/>
+  </linearGradient>
+  <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+    <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#161d27" stroke-width="1"/>
+  </pattern>
+  <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000000" flood-opacity="0.45"/>
+  </filter>
+  <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+    <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#2dd4bf" flood-opacity="0.5"/>
+  </filter>
+</defs><rect x="0" y="0" width="1280" height="720" rx="0" ry="0" fill="url(#bg)"/>
+<rect x="0" y="0" width="1280" height="720" rx="0" ry="0" fill="url(#grid)" opacity="0.5"/>
+<rect x="0" y="0" width="1280" height="4" rx="0" ry="0" fill="url(#accent)"/>
+<text x="1252" y="698" font-size="12.5" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="end">github.com/TAIPANBOX/agent-stack-go</text>
+<text x="40" y="84" font-size="15" fill="#9aa7b8" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="400" text-anchor="start">Agent Passport identity and the agent-event NDJSON envelope, defined once and imported by every Go service in the stack.</text>
+<line x1="40" y1="100" x2="1240" y2="100" stroke="#222b38" stroke-width="1"/>
+<text x="40" y="56" font-size="34" fill="#e6edf3" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start">agent-stack-go</text>
+<text x="336" y="56" font-size="22" fill="#9aa7b8" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="start">- Shared Go Contract</text>
+<text x="42" y="138" font-size="12" fill="#2dd4bf" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1.5">01 · PACKAGES</text>
+<text x="346" y="138" font-size="12" fill="#2dd4bf" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1.5">02 · SHARED CONTRACT</text>
+<text x="962" y="138" font-size="12" fill="#4493f8" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1.5">03 · CONSUMERS</text>
+<rect x="40" y="150" width="280" height="520" rx="14" ry="14" fill="#141a23" stroke="#283341" stroke-width="1" filter="url(#soft)"/>
+<rect x="344" y="150" width="592" height="520" rx="14" ry="14" fill="#141a23" stroke="#283341" stroke-width="1" filter="url(#soft)"/>
+<rect x="960" y="150" width="280" height="520" rx="14" ry="14" fill="#141a23" stroke="#283341" stroke-width="1" filter="url(#soft)"/>
+<rect x="56" y="165" width="248" height="150" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
+<rect x="56" y="165" width="4" height="150" rx="2" ry="2" fill="#2dd4bf" stroke="#283341" stroke-width="1"/>
+<text x="74" y="195" font-size="16" fill="#e6edf3" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start">passport</text>
+<text x="74" y="215" font-size="11.5" fill="#9aa7b8" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="400" text-anchor="start">Agent Passport document</text>
+<line x1="74" y1="229" x2="288" y2="229" stroke="#222b38" stroke-width="1"/>
+<text x="74" y="253" font-size="11.5" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">Parse · ValidateAgentURI</text>
+<text x="74" y="273" font-size="11.5" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">ValidateUserURI</text>
+<rect x="56" y="335" width="248" height="150" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
+<rect x="56" y="335" width="4" height="150" rx="2" ry="2" fill="#2dd4bf" stroke="#283341" stroke-width="1"/>
+<text x="74" y="365" font-size="16" fill="#e6edf3" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start">event</text>
+<text x="74" y="385" font-size="11.5" fill="#9aa7b8" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="400" text-anchor="start">NDJSON envelope + Writer/Scan</text>
+<line x1="74" y1="399" x2="288" y2="399" stroke="#222b38" stroke-width="1"/>
+<text x="74" y="423" font-size="11.5" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">Marshal · Unmarshal · Writer</text>
+<text x="74" y="443" font-size="11.5" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">Scan · ReadFile</text>
+<rect x="56" y="505" width="248" height="150" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
+<rect x="56" y="505" width="4" height="150" rx="2" ry="2" fill="#2dd4bf" stroke="#283341" stroke-width="1"/>
+<text x="74" y="535" font-size="16" fill="#e6edf3" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start">chain</text>
+<text x="74" y="555" font-size="11.5" fill="#9aa7b8" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="400" text-anchor="start">delegation-chain validation</text>
+<line x1="74" y1="569" x2="288" y2="569" stroke="#222b38" stroke-width="1"/>
+<text x="74" y="593" font-size="11.5" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">Append · Validate</text>
+<text x="74" y="613" font-size="11.5" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">MaxDepth = 32</text>
+<rect x="510" y="335" width="260" height="150" rx="14" ry="14" fill="#1a212c" stroke="#2dd4bf" stroke-width="1.8" filter="url(#glow)"/>
+<text x="640.0" y="383" font-size="20" fill="#2dd4bf" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="middle">agent-stack-go</text>
+<text x="640.0" y="407" font-size="14" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="middle">shared contract</text>
+<text x="640.0" y="427" font-size="11" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="middle">Go structs + JSON tags, stdlib only</text>
+<rect x="595.0" y="441" width="90" height="24" rx="12" ry="12" fill="none" stroke="#2dd4bf" stroke-width="1.4"/>
+<text x="640.0" y="457" font-size="11" fill="#2dd4bf" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="middle" letter-spacing="0.5">v0.1.0</text>
+<path d="M 304 240.0 C 407.0 240.0, 407.0 410.0, 510 410.0" fill="none" stroke="#2dd4bf" stroke-width="1.6" opacity="0.6"/>
+<path d="M 304 410.0 C 407.0 410.0, 407.0 410.0, 510 410.0" fill="none" stroke="#2dd4bf" stroke-width="1.6" opacity="0.6"/>
+<path d="M 304 580.0 C 407.0 580.0, 407.0 410.0, 510 410.0" fill="none" stroke="#2dd4bf" stroke-width="1.6" opacity="0.6"/>
+<path d="M 510 410.0 l -9 -5 l 0 10 z" fill="#2dd4bf"/>
+<text x="640.0" y="525" font-size="14" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="700" text-anchor="middle">→ no duplicated wire types</text>
+<text x="640.0" y="547" font-size="12" fill="#9aa7b8" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="400" text-anchor="middle">one Go module, pinned by git tag, never a local replace</text>
+<rect x="465.0" y="567" width="150" height="24" rx="12" ry="12" fill="none" stroke="#4493f8" stroke-width="1.4"/>
+<text x="540.0" y="583" font-size="11" fill="#4493f8" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="middle" letter-spacing="0.5">agent-event/v0.2</text>
+<rect x="655.0" y="567" width="170" height="24" rx="12" ry="12" fill="none" stroke="#2dd4bf" stroke-width="1.4"/>
+<text x="740.0" y="583" font-size="11" fill="#2dd4bf" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="middle" letter-spacing="0.5">agent-passport/v0.1</text>
+<rect x="976" y="172" width="248" height="70" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
+<rect x="976" y="172" width="4" height="70" rx="2" ry="2" fill="#2dd4bf" stroke="#283341" stroke-width="1"/>
+<text x="994" y="187" font-size="9" fill="#3fb950" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1">IMPORTS</text>
+<text x="994" y="206" font-size="14.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="start">Idryx</text>
+<text x="994" y="226" font-size="11" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">identity graph, detectors, Agent-BOM</text>
+<rect x="976" y="256" width="248" height="70" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
+<rect x="976" y="256" width="4" height="70" rx="2" ry="2" fill="#4493f8" stroke="#283341" stroke-width="1"/>
+<text x="994" y="271" font-size="9" fill="#3fb950" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1">IMPORTS</text>
+<text x="994" y="290" font-size="14.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="start">Wardryx</text>
+<text x="994" y="310" font-size="11" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">policy PDP: allow / deny / hold</text>
+<rect x="976" y="340" width="248" height="70" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
+<rect x="976" y="340" width="4" height="70" rx="2" ry="2" fill="#2dd4bf" stroke="#283341" stroke-width="1"/>
+<text x="994" y="355" font-size="9" fill="#3fb950" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1">IMPORTS</text>
+<text x="994" y="374" font-size="14.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="start">Mockryx</text>
+<text x="994" y="394" font-size="11" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">pre-prod safety rehearsal</text>
+<rect x="976" y="424" width="248" height="70" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
+<rect x="976" y="424" width="4" height="70" rx="2" ry="2" fill="#4493f8" stroke="#283341" stroke-width="1"/>
+<text x="994" y="439" font-size="9" fill="#3fb950" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1">IMPORTS</text>
+<text x="994" y="458" font-size="12.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="start">terraform-provider-taipan</text>
+<text x="994" y="478" font-size="11" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">budgets + passports as code</text>
+<path d="M 770 410.0 C 873.0 410.0, 873.0 207.0, 976 207.0" fill="none" stroke="#2dd4bf" stroke-width="1.6" opacity="0.55" stroke-dasharray="5,4"/>
+<path d="M 976 207.0 l -9 -5 l 0 10 z" fill="#2dd4bf"/>
+<path d="M 770 410.0 C 873.0 410.0, 873.0 291.0, 976 291.0" fill="none" stroke="#4493f8" stroke-width="1.6" opacity="0.55" stroke-dasharray="5,4"/>
+<path d="M 976 291.0 l -9 -5 l 0 10 z" fill="#4493f8"/>
+<path d="M 770 410.0 C 873.0 410.0, 873.0 375.0, 976 375.0" fill="none" stroke="#2dd4bf" stroke-width="1.6" opacity="0.55" stroke-dasharray="5,4"/>
+<path d="M 976 375.0 l -9 -5 l 0 10 z" fill="#2dd4bf"/>
+<path d="M 770 410.0 C 873.0 410.0, 873.0 459.0, 976 459.0" fill="none" stroke="#4493f8" stroke-width="1.6" opacity="0.55" stroke-dasharray="5,4"/>
+<path d="M 976 459.0 l -9 -5 l 0 10 z" fill="#4493f8"/></svg>

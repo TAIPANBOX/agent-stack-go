@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif"><defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0" stop-color="#0a0e16"/><stop offset="1" stop-color="#0d1117"/>
+  </linearGradient>
+  <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#2dd4bf"/><stop offset="0.5" stop-color="#4493f8"/><stop offset="1" stop-color="#2dd4bf"/>
+  </linearGradient>
+  <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+    <path d="M 32 0 L 0 0 0 32" fill="none" stroke="#161d27" stroke-width="1"/>
+  </pattern>
+  <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+    <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000000" flood-opacity="0.45"/>
+  </filter>
+  <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+    <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#2dd4bf" flood-opacity="0.5"/>
+  </filter>
+</defs><rect x="0" y="0" width="1280" height="720" rx="0" ry="0" fill="url(#bg)"/>
+<rect x="0" y="0" width="1280" height="720" rx="0" ry="0" fill="url(#grid)" opacity="0.5"/>
+<rect x="0" y="0" width="1280" height="4" rx="0" ry="0" fill="url(#accent)"/>
+<text x="1252" y="698" font-size="12.5" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="end">github.com/TAIPANBOX/agent-stack-go</text>
+<text x="40" y="84" font-size="15" fill="#9aa7b8" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="400" text-anchor="start">Every field below is a real exported Go struct field: the wire shape every consumer imports as-is.</text>
+<line x1="40" y1="100" x2="1240" y2="100" stroke="#222b38" stroke-width="1"/>
+<text x="40" y="56" font-size="28" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="700" text-anchor="start">The Shared Contract</text>
+<rect x="40" y="250" width="250" height="220" rx="14" ry="14" fill="#141a23" stroke="#283341" stroke-width="1" filter="url(#soft)"/>
+<text x="165.0" y="294" font-size="16" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="700" text-anchor="middle">agent-stack-go</text>
+<text x="165.0" y="318" font-size="16" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="700" text-anchor="middle">module</text>
+<circle cx="119.0" cy="376" r="9" fill="#1a212c" stroke="#2dd4bf" stroke-width="2"/>
+<circle cx="165.0" cy="392" r="9" fill="#1a212c" stroke="#4493f8" stroke-width="2"/>
+<circle cx="211.0" cy="376" r="9" fill="#1a212c" stroke="#3fb950" stroke-width="2"/>
+<text x="165.0" y="422" font-size="11.5" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="middle">passport · event · chain</text>
+<text x="165.0" y="444" font-size="11" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="middle">stdlib only at runtime</text>
+<rect x="330" y="300" width="170" height="120" rx="14" ry="14" fill="#1a212c" stroke="#2dd4bf" stroke-width="1.6" filter="url(#glow)"/>
+<text x="415.0" y="346" font-size="18" fill="#2dd4bf" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="middle">wire</text>
+<text x="415.0" y="370" font-size="13.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="middle">types</text>
+<text x="415.0" y="390" font-size="10.5" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="middle">JSON-tagged structs</text>
+<line x1="290" y1="360.0" x2="323" y2="360.0" stroke="#2dd4bf" stroke-width="2.2"/>
+<path d="M 330 360.0 l -9 -5 l 0 10 z" fill="#2dd4bf"/>
+<rect x="560" y="150" width="330" height="160" rx="14" ry="14" fill="#1b2331" stroke="#283341" stroke-width="1" filter="url(#soft)"/>
+<rect x="560" y="150" width="6" height="160" rx="3" ry="3" fill="#2dd4bf" stroke="#283341" stroke-width="1"/>
+<circle cx="594" cy="188" r="13" fill="none" stroke="#2dd4bf" stroke-width="2"/>
+<circle cx="594" cy="188" r="4" fill="#2dd4bf"/>
+<text x="618" y="186" font-size="15.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="700" text-anchor="start">Event - required</text>
+<text x="618" y="208" font-size="10" fill="#2dd4bf" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1.5">ENVELOPE</text>
+<line x1="584" y1="226" x2="866" y2="226" stroke="#222b38" stroke-width="1"/>
+<text x="584" y="248" font-size="12.5" fill="#e6edf3" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="600" text-anchor="start">schema · ts · source · type</text>
+<text x="584" y="267" font-size="12.5" fill="#e6edf3" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="600" text-anchor="start">agent_id</text>
+<text x="584" y="293" font-size="11.5" fill="#69788b" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="400" text-anchor="start">required; Unmarshal rejects if any is</text>
+<text x="584" y="309" font-size="11.5" fill="#69788b" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="400" text-anchor="start">missing</text>
+<rect x="920" y="150" width="330" height="160" rx="14" ry="14" fill="#1b2331" stroke="#283341" stroke-width="1" filter="url(#soft)"/>
+<rect x="920" y="150" width="6" height="160" rx="3" ry="3" fill="#4493f8" stroke="#283341" stroke-width="1"/>
+<circle cx="954" cy="188" r="13" fill="none" stroke="#4493f8" stroke-width="2"/>
+<circle cx="954" cy="188" r="4" fill="#4493f8"/>
+<text x="978" y="186" font-size="15.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="700" text-anchor="start">Event - optional</text>
+<text x="978" y="208" font-size="10" fill="#4493f8" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1.5">ENVELOPE</text>
+<line x1="944" y1="226" x2="1226" y2="226" stroke="#222b38" stroke-width="1"/>
+<text x="944" y="248" font-size="12.5" fill="#e6edf3" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="600" text-anchor="start">severity · run_id · on_behalf_of</text>
+<text x="944" y="267" font-size="12.5" fill="#e6edf3" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="600" text-anchor="start">data · prev_hash</text>
+<text x="944" y="293" font-size="11.5" fill="#69788b" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="400" text-anchor="start">chain, payload, and the hash-chain link</text>
+<rect x="560" y="328" width="330" height="160" rx="14" ry="14" fill="#1b2331" stroke="#283341" stroke-width="1" filter="url(#soft)"/>
+<rect x="560" y="328" width="6" height="160" rx="3" ry="3" fill="#2dd4bf" stroke="#283341" stroke-width="1"/>
+<circle cx="594" cy="366" r="13" fill="none" stroke="#2dd4bf" stroke-width="2"/>
+<circle cx="594" cy="366" r="4" fill="#2dd4bf"/>
+<text x="618" y="364" font-size="15.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="700" text-anchor="start">Passport - identity</text>
+<text x="618" y="386" font-size="10" fill="#2dd4bf" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1.5">PASSPORT</text>
+<line x1="584" y1="404" x2="866" y2="404" stroke="#222b38" stroke-width="1"/>
+<text x="584" y="426" font-size="12.5" fill="#e6edf3" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="600" text-anchor="start">schema · id · owner</text>
+<text x="584" y="445" font-size="12.5" fill="#e6edf3" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="600" text-anchor="start">display_name</text>
+<text x="584" y="471" font-size="11.5" fill="#69788b" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="400" text-anchor="start">id must be a well-formed agent:// URI</text>
+<rect x="920" y="328" width="330" height="160" rx="14" ry="14" fill="#1b2331" stroke="#283341" stroke-width="1" filter="url(#soft)"/>
+<rect x="920" y="328" width="6" height="160" rx="3" ry="3" fill="#4493f8" stroke="#283341" stroke-width="1"/>
+<circle cx="954" cy="366" r="13" fill="none" stroke="#4493f8" stroke-width="2"/>
+<circle cx="954" cy="366" r="4" fill="#4493f8"/>
+<text x="978" y="364" font-size="15.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="700" text-anchor="start">Passport - runtime &amp; lineage</text>
+<text x="978" y="386" font-size="10" fill="#4493f8" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1.5">PASSPORT</text>
+<line x1="944" y1="404" x2="1226" y2="404" stroke="#222b38" stroke-width="1"/>
+<text x="944" y="426" font-size="12.5" fill="#e6edf3" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="600" text-anchor="start">runtime · parent · labels</text>
+<text x="944" y="445" font-size="12.5" fill="#e6edf3" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="600" text-anchor="start">created_at</text>
+<text x="944" y="471" font-size="11.5" fill="#69788b" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="400" text-anchor="start">provisioning parent, optional metadata</text>
+<rect x="560" y="506" width="330" height="160" rx="14" ry="14" fill="#1b2331" stroke="#283341" stroke-width="1" filter="url(#soft)"/>
+<rect x="560" y="506" width="6" height="160" rx="3" ry="3" fill="#e3b341" stroke="#283341" stroke-width="1"/>
+<circle cx="594" cy="544" r="13" fill="none" stroke="#e3b341" stroke-width="2"/>
+<circle cx="594" cy="544" r="4" fill="#e3b341"/>
+<text x="618" y="542" font-size="15.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="700" text-anchor="start">Attestation</text>
+<text x="618" y="564" font-size="10" fill="#e3b341" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1.5">IDENTITY BINDING</text>
+<line x1="584" y1="582" x2="866" y2="582" stroke="#222b38" stroke-width="1"/>
+<text x="584" y="604" font-size="12.5" fill="#e6edf3" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="600" text-anchor="start">method · detail</text>
+<text x="584" y="630" font-size="11.5" fill="#69788b" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="400" text-anchor="start">none · oidc · spiffe-svid · enclave-key</text>
+<text x="584" y="646" font-size="11.5" fill="#69788b" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="400" text-anchor="start">· mtls-cert</text>
+<rect x="920" y="506" width="330" height="160" rx="14" ry="14" fill="#1b2331" stroke="#283341" stroke-width="1" filter="url(#soft)"/>
+<rect x="920" y="506" width="6" height="160" rx="3" ry="3" fill="#3fb950" stroke="#283341" stroke-width="1"/>
+<circle cx="954" cy="544" r="13" fill="none" stroke="#3fb950" stroke-width="2"/>
+<circle cx="954" cy="544" r="4" fill="#3fb950"/>
+<text x="978" y="542" font-size="15.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="700" text-anchor="start">Delegation chain</text>
+<text x="978" y="564" font-size="10" fill="#3fb950" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1.5">CHAIN</text>
+<line x1="944" y1="582" x2="1226" y2="582" stroke="#222b38" stroke-width="1"/>
+<text x="944" y="604" font-size="12.5" fill="#e6edf3" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="600" text-anchor="start">Append() · Validate()</text>
+<text x="944" y="623" font-size="12.5" fill="#e6edf3" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="600" text-anchor="start">MaxDepth = 32</text>
+<text x="944" y="649" font-size="11.5" fill="#69788b" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="400" text-anchor="start">acyclic, root-first, capped at 32</text>
+<text x="944" y="665" font-size="11.5" fill="#69788b" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="400" text-anchor="start">entries</text>
+<path d="M 500 360.0 C 527.0 360.0, 527.0 230.0, 554 230.0" fill="none" stroke="#2dd4bf" stroke-width="1.8" opacity="0.55"/>
+<path d="M 560 230.0 l -9 -5 l 0 10 z" fill="#2dd4bf"/>
+<path d="M 500 360.0 C 527.0 360.0, 527.0 408.0, 554 408.0" fill="none" stroke="#2dd4bf" stroke-width="1.8" opacity="0.55"/>
+<path d="M 560 408.0 l -9 -5 l 0 10 z" fill="#2dd4bf"/>
+<path d="M 500 360.0 C 527.0 360.0, 527.0 586.0, 554 586.0" fill="none" stroke="#e3b341" stroke-width="1.8" opacity="0.55"/>
+<path d="M 560 586.0 l -9 -5 l 0 10 z" fill="#e3b341"/></svg>
