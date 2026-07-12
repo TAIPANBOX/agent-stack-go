@@ -134,8 +134,11 @@ autonomously.
 ## Install
 
 ```sh
-go get github.com/TAIPANBOX/agent-stack-go
+go get github.com/TAIPANBOX/agent-stack-go@v0.1.0
 ```
+
+Pin to a tagged release, not to `@latest` and never to a local `replace`
+(see [Versioning](#versioning)).
 
 ## Usage
 
