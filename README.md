@@ -8,7 +8,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go)
 ![Go](https://img.shields.io/badge/go-1.26-00ADD8.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
-![Status](https://img.shields.io/badge/status-v0.1.0-success.svg)
+![Status](https://img.shields.io/badge/status-v0.2.0-success.svg)
 
 <img src="docs/architecture.png" alt="agent-stack-go: the passport, event and chain packages compose one shared contract, imported by tag by Idryx, Wardryx, Mockryx and terraform-provider-taipan" width="960">
 
@@ -119,6 +119,16 @@ shipping elsewhere in the stack.
 `enclave-key` · `mtls-cert`; `Attestation.Detail` is a method-specific
 reference (a SPIFFE ID, an issuer URL, …).
 
+| Function | Signature | Behavior |
+|---|---|---|
+| `LoadDir` | `LoadDir[T any](dirOrGlob string, parse func([]byte) (T, error), id func(T) string) ([]T, Report, error)` | reads every file under a directory/glob/literal path in sorted order, decoding each with `parse`; a file that fails `parse` is counted in `Report.Malformed` and skipped, never fatal; duplicate `id` keys keep the first occurrence in sorted-path order |
+
+`LoadDir` is generic over the parsed type, not tied to `Passport`: pass
+`passport.Parse` and an `ID`-extractor for a batch of Passport documents
+(the shape Wardryx's `internal/passports` and Idryx's
+`internal/ingest/passport` both need), or any other `func([]byte) (T, error)`
+for a different kind of file batch.
+
 ### `chain` - delegation-chain helpers
 
 | Function | Signature | Behavior |
@@ -134,7 +144,7 @@ autonomously.
 ## Install
 
 ```sh
-go get github.com/TAIPANBOX/agent-stack-go@v0.1.0
+go get github.com/TAIPANBOX/agent-stack-go@v0.2.0
 ```
 
 Pin to a tagged release, not to `@latest` and never to a local `replace`
@@ -207,7 +217,7 @@ out of lockstep with the schema that defines the wire contract.
 This module follows SemVer, starting at `v0.1.0`. Breaking the wire contract
 (the `passport` or `event` schema) is a spec version bump, never a silent
 change; the Go types version alongside the module itself. Consumers pin it
-by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.1.0`), never a local
+by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.2.0`), never a local
 `replace`.
 
 ---
@@ -218,7 +228,8 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.1.0`), never a local
 - [x] `event`: `Marshal`, `Unmarshal`, append-only `Writer`, `Scan`/`ReadFile` NDJSON readers
 - [x] `chain`: `Append`, `Validate`, `MaxDepth` = 32, acyclic + root-first
 - [x] conformance test against the canonical `agent-event` v0.2 JSON Schema
-- [x] `v0.1.0` tagged; CI green on `gofmt`, `go vet`, `staticcheck`, `go test -race`, `go build`, `govulncheck`
+- [x] `passport.LoadDir`: shared batch loader (resolve dir/glob/file, sorted, tolerant, first-seen-id dedup), extracted out of Wardryx's and Idryx's independent copies
+- [x] `v0.2.0` tagged; CI green on `gofmt`, `go vet`, `staticcheck`, `go test -race`, `go build`, `govulncheck`
 - [ ] additional consumer packages as new stack services need them
 
 ## License
