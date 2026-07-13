@@ -191,12 +191,32 @@ func main() {
 }
 ```
 
+## Command-line tool: `agent-conform`
+
+```sh
+go install github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform@v0.2.0
+agent-conform passport.json events.ndjson
+```
+
+The standalone conformance checker: validates Passport documents and
+agent-event NDJSON streams against the canonical JSON Schemas, the check
+agent-passport's own README names as not existing yet ("conformance is
+verified per-repo... by hand"). Stricter than `passport.Parse`/
+`event.Unmarshal` (which only enforce required-field presence) -- full
+schema validation, including patterns like the `agent://` URI grammar and
+`prev_hash`'s exact 64-hex-char form. Each file is classified by its own
+`schema` field, not extension, mirroring the same convention every
+connector in the stack already uses. Exit code 0 means every file (and
+every line within an event stream) conforms; 1 means at least one did not.
+
 ## Design notes
 
-- Stdlib only at runtime: no third-party dependency is ever required to
-  import and use `passport`, `event`, or `chain`. The one exception is
-  `github.com/santhosh-tekuri/jsonschema/v6`, a test-only dependency used
-  solely by `event`'s conformance test.
+- Stdlib only at runtime for the **importable packages** (`passport`,
+  `event`, `chain`): no third-party dependency is ever required to import
+  and use them. `github.com/santhosh-tekuri/jsonschema/v6` is used by
+  `event`'s conformance test and, as a real (non-test) dependency, by
+  `cmd/agent-conform` -- a consumer importing only the library packages
+  never pulls it in; only building the standalone tool does.
 - Each package mirrors an existing internal implementation elsewhere in the
   stack (Idryx's `internal/ingest/passport` and `internal/ingest/tokenfuse`,
   TokenFuse's `tokenfuse-core::agent_event`, Engram's `engram.events`) rather
@@ -211,6 +231,9 @@ The canonical JSON Schemas live in the `TAIPANBOX/agent-passport` repo.
 `event/testdata/agent-event.v0.2.schema.json` is a local copy used only by
 this module's conformance test, so the Go bindings can never silently drift
 out of lockstep with the schema that defines the wire contract.
+`cmd/agent-conform/schemas/*.json` are separate local copies of all three
+schemas (Passport, event v0.1, event v0.2), embedded into that tool via
+`go:embed` for the same reason.
 
 ## Versioning
 
@@ -230,6 +253,10 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.2.0`), never a local
 - [x] conformance test against the canonical `agent-event` v0.2 JSON Schema
 - [x] `passport.LoadDir`: shared batch loader (resolve dir/glob/file, sorted, tolerant, first-seen-id dedup), extracted out of Wardryx's and Idryx's independent copies
 - [x] `v0.2.0` tagged; CI green on `gofmt`, `go vet`, `staticcheck`, `go test -race`, `go build`, `govulncheck`
+- [x] `cmd/agent-conform`: standalone conformance-check CLI, full JSON Schema
+  validation (Passport documents + event v0.1/v0.2) against embedded copies
+  of the canonical schemas; live-verified against real fixtures elsewhere
+  in the stack, catching a real 63-vs-64-hex-char `prev_hash` defect
 
 This module's package set (`passport`, `event`, `chain`) covers everything the
 stack's current Go consumers need; it is not a fixed, closed list, and grows

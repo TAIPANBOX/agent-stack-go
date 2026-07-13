@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://taipanbox.dev/agent-passport/v0.1/agent-passport.schema.json",
+  "title": "Agent Passport",
+  "description": "A small JSON document describing one agent's identity. See SPEC.md §4.",
+  "type": "object",
+  "required": ["schema", "id", "owner"],
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "taipanbox.dev/agent-passport/v0.1",
+      "description": "Schema identifier and version."
+    },
+    "id": {
+      "type": "string",
+      "description": "Canonical agent identifier. See SPEC.md §3.1.",
+      "pattern": "^agent://[a-z0-9.-]+/[a-z0-9._/-]+$",
+      "maxLength": 255
+    },
+    "display_name": {
+      "type": "string",
+      "description": "Human-readable name for display purposes."
+    },
+    "owner": {
+      "type": "string",
+      "description": "Human or team principal (email or group). See SPEC.md §4.1.",
+      "minLength": 1
+    },
+    "runtime": {
+      "type": "string",
+      "description": "Free-form label for the agent runtime/framework (e.g. langgraph)."
+    },
+    "parent": {
+      "type": "string",
+      "description": "Static provisioning parent agent ID. See SPEC.md §4.2.",
+      "pattern": "^agent://[a-z0-9.-]+/[a-z0-9._/-]+$",
+      "maxLength": 255
+    },
+    "attestation": {
+      "type": "object",
+      "description": "How the org binds this name to a workload. See SPEC.md §4.3.",
+      "required": ["method"],
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": ["none", "oidc", "spiffe-svid", "enclave-key", "mtls-cert"]
+        },
+        "detail": {
+          "type": "string",
+          "description": "Method-specific reference, e.g. a SPIFFE ID or issuer URL."
+        }
+      },
+      "additionalProperties": true
+    },
+    "labels": {
+      "type": "object",
+      "description": "Free-form key/value labels (e.g. env, cost_center).",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 UTC timestamp."
+    }
+  },
+  "additionalProperties": true
+}
