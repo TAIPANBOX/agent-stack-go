@@ -194,9 +194,12 @@ func main() {
 ## Command-line tool: `agent-conform`
 
 ```sh
-go install github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform@v0.2.0
+go install github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform@main
 agent-conform passport.json events.ndjson
 ```
+
+(`@main`, not a tag: this tool landed after `v0.2.0`; switch to whatever
+tag first includes it once one exists, per [Versioning](#versioning).)
 
 The standalone conformance checker: validates Passport documents and
 agent-event NDJSON streams against the canonical JSON Schemas, the check
