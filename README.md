@@ -230,7 +230,11 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.2.0`), never a local
 - [x] conformance test against the canonical `agent-event` v0.2 JSON Schema
 - [x] `passport.LoadDir`: shared batch loader (resolve dir/glob/file, sorted, tolerant, first-seen-id dedup), extracted out of Wardryx's and Idryx's independent copies
 - [x] `v0.2.0` tagged; CI green on `gofmt`, `go vet`, `staticcheck`, `go test -race`, `go build`, `govulncheck`
-- [ ] additional consumer packages as new stack services need them
+
+This module's package set (`passport`, `event`, `chain`) covers everything the
+stack's current Go consumers need; it is not a fixed, closed list, and grows
+opportunistically the same way `passport.LoadDir` did (extracted once two
+independent copies existed, not speculatively).
 
 ## License
 
