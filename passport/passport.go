@@ -63,6 +63,25 @@ type Attestation struct {
 	Detail string `json:"detail,omitempty"`
 }
 
+// FsScope is one declared filesystem access entry (SPEC.md 4.4): a folder the
+// agent is declared to reach, with a read or write mode. A declaration of
+// intent for audit, not an enforced control.
+type FsScope struct {
+	Path string `json:"path"`
+	Mode string `json:"mode"`
+}
+
+// Model is one declared LLM the agent is meant to use (SPEC.md 4.5): a
+// provider, and optionally a specific model and API endpoint. A declaration
+// for audit and inventory, not an enforced control. It is the declared side of
+// a three-source AI inventory (declared here, coded in the agent's source,
+// observed on the network).
+type Model struct {
+	Provider string `json:"provider"`
+	Model    string `json:"model,omitempty"`
+	Endpoint string `json:"endpoint,omitempty"`
+}
+
 // Passport is the wire shape of one Agent Passport document.
 type Passport struct {
 	Schema      string            `json:"schema"`
@@ -72,6 +91,8 @@ type Passport struct {
 	Runtime     string            `json:"runtime,omitempty"`
 	Parent      string            `json:"parent,omitempty"`
 	Attestation *Attestation      `json:"attestation,omitempty"`
+	Filesystem  []FsScope         `json:"filesystem,omitempty"`
+	Models      []Model           `json:"models,omitempty"`
 	Labels      map[string]string `json:"labels,omitempty"`
 	CreatedAt   string            `json:"created_at,omitempty"`
 }

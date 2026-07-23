@@ -55,6 +55,42 @@ func TestParseValid(t *testing.T) {
 	}
 }
 
+// TestParseFilesystemAndModels covers the SPEC 4.4/4.5 declaration arrays:
+// filesystem scopes and declared models parse into their typed slices, and
+// an entry's optional model/endpoint fields stay empty when absent.
+func TestParseFilesystemAndModels(t *testing.T) {
+	data := []byte(`{
+		"schema": "taipanbox.dev/agent-passport/v0.1",
+		"id": "agent://acme.example/data/etl",
+		"owner": "team-data@acme.example",
+		"filesystem": [
+			{ "path": "/data/reports", "mode": "read" },
+			{ "path": "/data/out", "mode": "write" }
+		],
+		"models": [
+			{ "provider": "anthropic", "model": "claude-sonnet-4-5", "endpoint": "api.anthropic.com" },
+			{ "provider": "openai" }
+		]
+	}`)
+	p, err := Parse(data)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if len(p.Filesystem) != 2 || p.Filesystem[0] != (FsScope{Path: "/data/reports", Mode: "read"}) || p.Filesystem[1] != (FsScope{Path: "/data/out", Mode: "write"}) {
+		t.Errorf("Filesystem = %+v", p.Filesystem)
+	}
+	if len(p.Models) != 2 {
+		t.Fatalf("Models len = %d, want 2 (%+v)", len(p.Models), p.Models)
+	}
+	if p.Models[0] != (Model{Provider: "anthropic", Model: "claude-sonnet-4-5", Endpoint: "api.anthropic.com"}) {
+		t.Errorf("Models[0] = %+v", p.Models[0])
+	}
+	// The bare-provider entry keeps model and endpoint empty.
+	if p.Models[1] != (Model{Provider: "openai"}) {
+		t.Errorf("Models[1] = %+v, want only provider set", p.Models[1])
+	}
+}
+
 // TestParseMinimal covers the SPEC's required-field rule: schema, id, and
 // owner are required, everything else is optional and must parse cleanly
 // when absent.
