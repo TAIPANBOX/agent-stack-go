@@ -81,7 +81,7 @@ kind of wheel not to hand-roll):
 | Package | Wire schema | What it defines |
 |---|---|---|
 | `passport` | `taipanbox.dev/agent-passport/v0.1` | the Agent Passport document: identity, owner, runtime, provisioning parent, attestation posture |
-| `event` | `taipanbox.dev/agent-event/v0.2` (v0.1 still accepted) | the agent-event NDJSON envelope, plus an append-only `Writer` and tolerant `Scan`/`ReadFile` readers |
+| `event` | `taipanbox.dev/agent-event/v0.2` (v0.1 still accepted) | the agent-event NDJSON envelope, plus an append-only `Writer`, tolerant `Scan`/`ReadFile` readers, and the `ChainedWriter`/`VerifyChain` SPEC 6.5 `prev_hash` integrity chain (`Canonicalize`/`ChainHash`) |
 | `chain` | n/a (a v0.2 normative rule) | delegation-chain helpers: acyclic, root-first, capped at `chain.MaxDepth` (32) entries |
 
 ### `event.Event` - the agent-event envelope
@@ -237,12 +237,14 @@ every line within an event stream) conforms; 1 means at least one did not.
 
 ## Design notes
 
-- Stdlib only at runtime for the **importable packages** (`passport`,
-  `event`, `chain`): no third-party dependency is ever required to import
-  and use them. `github.com/santhosh-tekuri/jsonschema/v6` is used by
-  `event`'s conformance test and, as a real (non-test) dependency, by
-  `cmd/agent-conform` -- a consumer importing only the library packages
-  never pulls it in; only building the standalone tool does.
+- Stdlib only at runtime for `passport` and `chain`: no third-party
+  dependency is ever required to import and use them. `event` additionally
+  requires `github.com/gowebpki/jcs` (RFC 8785/JCS canonicalization) at
+  runtime, for the `prev_hash` integrity chain (`ChainedWriter`/
+  `VerifyChain`, see above). `github.com/santhosh-tekuri/jsonschema/v6` is
+  used by `event`'s conformance test and, as a real (non-test) dependency,
+  by `cmd/agent-conform` -- a consumer importing only the library packages
+  never pulls in jsonschema; only building the standalone tool does.
 - Each package mirrors an existing internal implementation elsewhere in the
   stack (Idryx's `internal/ingest/passport` and `internal/ingest/tokenfuse`,
   TokenFuse's `tokenfuse-core::agent_event`, Engram's `engram.events`) rather
@@ -274,7 +276,7 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.2.0`), never a local
 ## Status
 
 - [x] `passport`: `Parse`, `ValidateAgentURI`, `ValidateUserURI`, sentinel errors
-- [x] `event`: `Marshal`, `Unmarshal`, append-only `Writer`, `Scan`/`ReadFile` NDJSON readers
+- [x] `event`: `Marshal`, `Unmarshal`, append-only `Writer`, `Scan`/`ReadFile` NDJSON readers, `ChainedWriter`/`VerifyChain` SPEC 6.5 `prev_hash` integrity chain, `Canonicalize`/`ChainHash`
 - [x] `chain`: `Append`, `Validate`, `MaxDepth` = 32, acyclic + root-first
 - [x] conformance test against the canonical `agent-event` v0.2 JSON Schema
 - [x] `passport.LoadDir`: shared batch loader (resolve dir/glob/file, sorted, tolerant, first-seen-id dedup), extracted out of Wardryx's and Idryx's independent copies
