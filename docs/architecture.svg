@@ -41,7 +41,8 @@
 <text x="74" y="385" font-size="11.5" fill="#9aa7b8" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="400" text-anchor="start">NDJSON envelope + Writer/Scan</text>
 <line x1="74" y1="399" x2="288" y2="399" stroke="#222b38" stroke-width="1"/>
 <text x="74" y="423" font-size="11.5" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">Marshal · Unmarshal · Writer</text>
-<text x="74" y="443" font-size="11.5" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">Scan · ReadFile</text>
+<text x="74" y="443" font-size="11.5" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">Scan · ReadFile · ChainedWriter</text>
+<text x="74" y="463" font-size="11.5" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">prev_hash chain (SPEC 6.5)</text>
 <rect x="56" y="505" width="248" height="150" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
 <rect x="56" y="505" width="4" height="150" rx="2" ry="2" fill="#2dd4bf" stroke="#283341" stroke-width="1"/>
 <text x="74" y="535" font-size="16" fill="#e6edf3" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start">chain</text>
