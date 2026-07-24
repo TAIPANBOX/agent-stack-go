@@ -14,7 +14,16 @@
 //
 // Usage:
 //
-//	agent-conform <file>...
+//	agent-conform [-chain] <file>...
+//
+// With -chain, every event-stream file is ADDITIONALLY verified as a
+// prev_hash integrity chain (SPEC §6.5, via package event's VerifyChain):
+// a genuine break (a prev_hash that does not match the hash of the line
+// before it) fails the file. Chain restarts (a later line with no
+// prev_hash) and unverifiable links (after a malformed line, or a stream
+// that opens mid-chain, e.g. a rotated segment) are reported but do not
+// fail: the field is optional by spec, and only a mismatch is evidence of
+// tampering or loss.
 //
 // Each file is classified by content, not extension -- the same
 // classify-by-schema-field convention every connector in the stack already
@@ -42,6 +51,8 @@ import (
 	"strings"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
+
+	"github.com/TAIPANBOX/agent-stack-go/event"
 )
 
 //go:embed schemas/*.json
@@ -59,8 +70,14 @@ const (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: agent-conform <file>...")
+	args := os.Args[1:]
+	chain := false
+	if len(args) > 0 && args[0] == "-chain" {
+		chain = true
+		args = args[1:]
+	}
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "usage: agent-conform [-chain] <file>...")
 		os.Exit(2)
 	}
 
@@ -71,8 +88,8 @@ func main() {
 	}
 
 	allOK := true
-	for _, path := range os.Args[1:] {
-		if !checkFile(schemas, path) {
+	for _, path := range args {
+		if !checkFile(schemas, path, chain) {
 			allOK = false
 		}
 	}
@@ -139,8 +156,11 @@ func addEmbedded(c *jsonschema.Compiler, embeddedPath, url string) error {
 
 // checkFile validates one file, printing one line per record checked
 // (a Passport document is one record; an event stream is one record per
-// NDJSON line), and returns whether every record in it conformed.
-func checkFile(schemas *compiledSchemas, path string) bool {
+// NDJSON line), and returns whether every record in it conformed. With
+// chain set, an event stream must additionally pass the SPEC §6.5
+// prev_hash verification (checkChain); -chain has no meaning for a
+// Passport document, which is one object with no stream to chain.
+func checkFile(schemas *compiledSchemas, path string, chain bool) bool {
 	raw, err := os.ReadFile(path) // #nosec G304 G703 -- path is the operator's own CLI argument, same trust model as any file the invoking user names
 	if err != nil {
 		fmt.Printf("FAIL %s: %v\n", path, err)
@@ -156,7 +176,37 @@ func checkFile(schemas *compiledSchemas, path string) bool {
 		return checkRecord(schemas.passport, trimmed, fmt.Sprintf("%s (passport, %s)", path, schemaName))
 	}
 
-	return checkEventStream(schemas, trimmed, path)
+	ok := checkEventStream(schemas, trimmed, path)
+	if chain {
+		ok = checkChain(trimmed, path) && ok
+	}
+	return ok
+}
+
+// checkChain runs the SPEC §6.5 prev_hash verification over an event
+// stream. Only a genuine break fails; restarts and unverifiable links are
+// reported for the operator to see (they are legal, but an auditor deciding
+// whether a stream is one unbroken chain wants them on the record).
+func checkChain(raw []byte, path string) bool {
+	report, err := event.VerifyChain(bytes.NewReader(raw))
+	if err != nil {
+		fmt.Printf("FAIL %s: chain: %v\n", path, err)
+		return false
+	}
+	for _, b := range report.Breaks {
+		fmt.Printf("FAIL %s:%d: chain break: prev_hash %s, expected %s\n", path, b.Line, b.Found, b.Expected)
+	}
+	if extra := len(report.HeadLines) - 1; extra > 0 {
+		fmt.Printf("NOTE %s: %d chain restart(s) at line(s) %v\n", path, extra, report.HeadLines[1:])
+	}
+	if len(report.Unverifiable) > 0 {
+		fmt.Printf("NOTE %s: %d unverifiable link(s) at line(s) %v\n", path, len(report.Unverifiable), report.Unverifiable)
+	}
+	if !report.Ok() {
+		return false
+	}
+	fmt.Printf("PASS %s (chain: %d chained, %d head(s))\n", path, report.Chained, len(report.HeadLines))
+	return true
 }
 
 // passportSchemaName reports whether raw parses as one JSON object whose

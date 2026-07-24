@@ -73,7 +73,10 @@ Run the whole open stack locally with one command via [**stack-up**](https://git
 <img src="docs/contract.png" alt="The event envelope's required and optional fields, the Passport identity and runtime fields, the Attestation binding, and the chain package's delegation helpers" width="900">
 </div>
 
-Three packages, one contract, stdlib only:
+Three packages, one contract, stdlib plus exactly one vetted dependency
+(`github.com/gowebpki/jcs`, the RFC 8785/JCS canonicalization the
+`prev_hash` integrity chain hashes over - canonical JSON is precisely the
+kind of wheel not to hand-roll):
 
 | Package | Wire schema | What it defines |
 |---|---|---|
@@ -94,7 +97,7 @@ Three packages, one contract, stdlib only:
 | `RunID` | `run_id` | `string` | no | correlates events within one run |
 | `OnBehalfOf` | `on_behalf_of` | `[]string` | no | the delegation chain (see package `chain`) |
 | `Data` | `data` | `map[string]any` | no | the event payload |
-| `PrevHash` | `prev_hash` | `string` | no | the hash-chain link |
+| `PrevHash` | `prev_hash` | `string` | no | the SPEC §6.5 integrity-chain link; stamped by `ChainedWriter`, verified by `VerifyChain` |
 
 `Unmarshal` returns a sentinel error (`ErrMissingSchema`, `ErrMissingTS`,
 `ErrMissingSource`, `ErrMissingType`, `ErrMissingAgentID`) for any missing
@@ -102,6 +105,24 @@ required field, checkable with `errors.Is`. Struct fields are declared in
 wire order, so `json.Marshal`'s output matches the Rust
 (`tokenfuse-core::agent_event`) and Python (`engram.events`) exporters
 shipping elsewhere in the stack.
+
+### The `prev_hash` integrity chain (SPEC §6.5)
+
+`ChainedWriter` is `Writer` plus the chain: every appended event carries
+`sha256:` + hex(sha256(C)) of the PREVIOUS event, where C is its RFC 8785
+(JCS) canonical serialization with the `prev_hash` field removed. One
+file is one chain: reopening resumes from the tail, so a process restart
+does not fork the chain (an unreadable tail starts fresh, fail-open, and
+a verifier shows the restart honestly). `Canonicalize`/`ChainHash` are
+the exported primitives; `VerifyChain` walks a stream and reports
+genuine breaks separately from legal restarts and unverifiable links (a
+rotated segment's first line, or the line after a malformed one).
+`agent-conform -chain <file>` runs the same verification from the CLI.
+The chain is tamper-EVIDENCE, not tamper-proof: whole-file rewrites can
+re-chain; partial edits, truncation and reordering no longer pass
+silently. Cross-language pinned vectors live in
+`event/testdata/chain-vectors.json`; the Rust (`tokenfuse`) and Python
+(`engram`, `verdryx`) emitters pin the same bytes.
 
 ### `passport.Passport` - the Agent Passport document
 
