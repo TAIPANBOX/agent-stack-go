@@ -291,6 +291,14 @@ stack's current Go consumers need; it is not a fixed, closed list, and grows
 opportunistically the same way `passport.LoadDir` did (extracted once two
 independent copies existed, not speculatively).
 
+## Validation
+
+What has actually been checked about this contract, what a real cluster run
+confirmed, and what is explicitly NOT validated: [`VALIDATION.md`](VALIDATION.md).
+The short version is that `agent-conform` caught a real 63-versus-64 hex
+character `prev_hash` defect in another service's output, which is the whole
+reason this tooling exists.
+
 ## License
 
 [Apache-2.0](./LICENSE).
