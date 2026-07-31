@@ -26,6 +26,8 @@ jobs:
         run: go test -race ./...
       - name: build
         run: go build ./...
+      - name: library packages stay dependency-clean
+        run: ./scripts/deps-layering.sh
 
   security:
     runs-on: ubuntu-latest
