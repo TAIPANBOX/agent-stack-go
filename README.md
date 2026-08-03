@@ -8,7 +8,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go)
 ![Go](https://img.shields.io/badge/go-1.26-00ADD8.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
-![Status](https://img.shields.io/badge/status-v0.2.0-success.svg)
+![Status](https://img.shields.io/badge/status-v0.4.0-success.svg)
 
 <img src="docs/architecture.png" alt="agent-stack-go: the passport, event and chain packages compose one shared contract, imported by tag by Idryx, Wardryx, Mockryx, Qryx, heraldyx and terraform-provider-taipan" width="960">
 
@@ -171,7 +171,7 @@ autonomously.
 ## Install
 
 ```sh
-go get github.com/TAIPANBOX/agent-stack-go@v0.2.0
+go get github.com/TAIPANBOX/agent-stack-go@v0.4.0
 ```
 
 Pin to a tagged release, not to `@latest` and never to a local `replace`
@@ -221,12 +221,12 @@ func main() {
 ## Command-line tool: `agent-conform`
 
 ```sh
-go install github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform@main
+go install github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform@v0.4.0
 agent-conform passport.json events.ndjson
 ```
 
-(`@main`, not a tag: this tool landed after `v0.2.0`; switch to whatever
-tag first includes it once one exists, per [Versioning](#versioning).)
+(It landed after `v0.2.0` and shipped in `v0.4.0`, so a tag is the right way
+to install it now, per [Versioning](#versioning).)
 
 The standalone conformance checker: validates Passport documents and
 agent-event NDJSON streams against the canonical JSON Schemas, the check
@@ -272,7 +272,7 @@ schemas (Passport, event v0.1, event v0.2), embedded into that tool via
 This module follows SemVer, starting at `v0.1.0`. Breaking the wire contract
 (the `passport` or `event` schema) is a spec version bump, never a silent
 change; the Go types version alongside the module itself. Consumers pin it
-by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.2.0`), never a local
+by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.4.0`), never a local
 `replace`.
 
 ---
@@ -284,7 +284,7 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.2.0`), never a local
 - [x] `chain`: `Append`, `Validate`, `MaxDepth` = 32, acyclic + root-first
 - [x] conformance test against the canonical `agent-event` v0.2 JSON Schema
 - [x] `passport.LoadDir`: shared batch loader (resolve dir/glob/file, sorted, tolerant, first-seen-id dedup), extracted out of Wardryx's and Idryx's independent copies
-- [x] `v0.2.0` tagged; CI green on `gofmt`, `go vet`, `staticcheck`, `go test -race`, `go build`, `govulncheck`
+- [x] `v0.4.0` tagged; CI green on `gofmt`, `go vet`, `staticcheck`, `go test -race`, `go build`, `govulncheck`
 - [x] `cmd/agent-conform`: standalone conformance-check CLI, full JSON Schema
   validation (Passport documents + event v0.1/v0.2) against embedded copies
   of the canonical schemas; live-verified against real fixtures elsewhere
