@@ -142,11 +142,22 @@ had one, is worse than an absent invariant.
     one breaks the property in **silence**: the build still succeeds, the
     binaries stop matching, and the only person who finds out is the one trying
     to verify us.
-    *(gate: `scripts/reproducible-build.sh`, which builds the same source in two
-    directories of deliberately different lengths and refuses if a byte differs;
-    verified by deleting `-trimpath`, which fails it. The same three flags were
+    *(gate: `scripts/reproducible-build.sh`, in two halves. It reads the `go
+    build` command out of `.github/workflows/release.yml`, joining backslash
+    continuations first so it judges the whole command, and refuses if any of
+    the three flags is absent there or if no build command is found at all.
+    Then it builds the same source in two directories of deliberately different
+    lengths and refuses if a byte differs. Verified by breaking, four ways:
+    deleting each flag from the workflow in turn, and swapping the hand-rolled
+    matrix for a tool, each of which fails it. The same three flags were
     measured against real published artifacts in qryx and idryx on 2026-08-05,
     each rebuilding to its release byte for byte from a different host OS.)*
+
+    The first half was added on 2026-08-05 because the sentence above claimed
+    the two files agree and nothing compared them. The script kept all three
+    flags, so it kept passing, and it would have gone on passing while the
+    workflow lost one. A gate that holds only its own side of an agreement is
+    not holding the agreement.
 
 ## Decisions that have no gate yet
 

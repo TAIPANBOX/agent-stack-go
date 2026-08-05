@@ -9,7 +9,7 @@
 ![Go](https://img.shields.io/badge/go-1.26-00ADD8.svg)
 ![tests](https://img.shields.io/badge/tests-67-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
-![Status](https://img.shields.io/badge/status-v0.4.0-success.svg)
+![Status](https://img.shields.io/badge/status-v0.5.0-success.svg)
 
 <img src="docs/architecture.png" alt="agent-stack-go: the passport, event and chain packages compose one shared contract, imported by tag by Idryx, Wardryx, Mockryx, Qryx, heraldyx and terraform-provider-taipan" width="960">
 
@@ -172,7 +172,7 @@ autonomously.
 ## Install
 
 ```sh
-go get github.com/TAIPANBOX/agent-stack-go@v0.4.0
+go get github.com/TAIPANBOX/agent-stack-go@v0.5.0
 ```
 
 Pin to a tagged release, not to `@latest` and never to a local `replace`
@@ -205,17 +205,21 @@ places: this tool's output is a verdict about *your* system, and a verdict is
 worth what its checker is worth.
 
 ```sh
-git checkout v0.4.0
+git checkout v0.5.0
 CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath \
-  -ldflags "-s -w -X main.version=v0.4.0" -o mine ./cmd/agent-conform
+  -ldflags "-s -w -X main.version=v0.5.0" -o mine ./cmd/agent-conform
 sha256sum mine        # compare with SHA256SUMS from the release page
 ```
 
 Three flags make that work, `CGO_ENABLED=0`, `-trimpath` and `-s -w`, and losing
 any one would break it **silently**: the build would still succeed and only
-somebody trying to verify us would find out. CI therefore builds the same source
-in two directories of different lengths on every push and refuses if a byte
-differs (`scripts/reproducible-build.sh`). The same three flags were measured
+somebody trying to verify us would find out. So on every push CI does two things
+(`scripts/reproducible-build.sh`): it reads the build command out of the release
+workflow and refuses if any of the three flags is missing there, and it builds
+the same source in two directories of different lengths and refuses if a byte
+differs. The first of those exists because the flags have to agree in two files,
+and until 5 August 2026 only one of the two was ever checked. The same three
+flags were measured
 against real published artifacts in the sibling repositories qryx and idryx on
 5 August 2026, each rebuilding to its release byte for byte from a different
 host OS.
@@ -273,7 +277,7 @@ func main() {
 ## Command-line tool: `agent-conform`
 
 ```sh
-go install github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform@v0.4.0
+go install github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform@v0.5.0
 agent-conform passport.json events.ndjson
 ```
 
@@ -324,7 +328,7 @@ schemas (Passport, event v0.1, event v0.2), embedded into that tool via
 This module follows SemVer, starting at `v0.1.0`. Breaking the wire contract
 (the `passport` or `event` schema) is a spec version bump, never a silent
 change; the Go types version alongside the module itself. Consumers pin it
-by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.4.0`), never a local
+by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.5.0`), never a local
 `replace`.
 
 ---
@@ -336,7 +340,7 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.4.0`), never a local
 - [x] `chain`: `Append`, `Validate`, `MaxDepth` = 32, acyclic + root-first
 - [x] conformance test against the canonical `agent-event` v0.2 JSON Schema
 - [x] `passport.LoadDir`: shared batch loader (resolve dir/glob/file, sorted, tolerant, first-seen-id dedup), extracted out of Wardryx's and Idryx's independent copies
-- [x] `v0.4.0` tagged; CI green on `gofmt`, `go vet`, `staticcheck`, `go test -race`, `go build`, `govulncheck`
+- [x] `v0.5.0` tagged, the first release to publish `agent-conform` as a binary; CI green on `gofmt`, `go vet`, `staticcheck`, `go test -race`, `go build`, `govulncheck`
 - [x] `cmd/agent-conform`: standalone conformance-check CLI, full JSON Schema
   validation (Passport documents + event v0.1/v0.2) against embedded copies
   of the canonical schemas; live-verified against real fixtures elsewhere
