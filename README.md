@@ -205,11 +205,31 @@ places: this tool's output is a verdict about *your* system, and a verdict is
 worth what its checker is worth.
 
 ```sh
+# ours, from the release page, unpacked
+tar -xzf agent-conform_v0.5.0_darwin_arm64.tar.gz
+
+# yours
 git checkout v0.5.0
 CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath \
   -ldflags "-s -w -X main.version=v0.5.0" -o mine ./cmd/agent-conform
-sha256sum mine        # compare with SHA256SUMS from the release page
+
+sha256sum mine agent-conform_v0.5.0_darwin_arm64/agent-conform
+# macOS ships shasum -a 256 rather than sha256sum, and this example builds for
+# darwin, so that is probably the one you want
 ```
+
+Two identical digests. Measured on 5 August 2026 against the real `v0.5.0`
+assets, cross-compiled on an Ubuntu runner and rebuilt on macOS:
+`fe8ccb5e1606129818981bfd6a7369a5a9dbc640bbec40640762d8d01c888ff5`.
+
+**Compare the binaries, not the archives.** `SHA256SUMS` on the release page
+lists the `.tar.gz` and `.zip` files, and it answers a different question: did
+your download arrive intact. It cannot answer this one, because `tar` and
+`gzip` stamp times into the archive, so the archive is not reproducible even
+when every byte of the binary inside it is. An earlier version of this recipe
+said to compare `mine` against `SHA256SUMS` directly. Anybody who followed it
+got two digests that could never match and a good reason to think we were
+lying.
 
 Three flags make that work, `CGO_ENABLED=0`, `-trimpath` and `-s -w`, and losing
 any one would break it **silently**: the build would still succeed and only
