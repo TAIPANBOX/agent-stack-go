@@ -189,12 +189,26 @@ Prebuilt binaries for Linux, macOS and Windows, on x86_64 and arm64, are
 published on the [Releases page](https://github.com/TAIPANBOX/agent-stack-go/releases)
 for every `v*` tag, with a `SHA256SUMS` beside them.
 
+**The asset names carry no version**, so `releases/latest/download/<name>` is a
+permanent address for the current build. You never look up a version number,
+and a link to one of these does not rot.
+
 ```sh
-tar -xzf agent-conform_v*_$(uname -s | tr A-Z a-z)_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz
+P=$(uname -s | tr A-Z a-z)_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+U=https://github.com/TAIPANBOX/agent-stack-go/releases/latest/download
+
+curl -fsSLO $U/agent-conform_$P.tar.gz
+curl -fsSLO $U/SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing
-./agent-conform -version
-./agent-conform -chain passport.json
+
+tar -xzf agent-conform_$P.tar.gz
+./agent-conform_$P/agent-conform -version
+./agent-conform_$P/agent-conform -chain passport.json
 ```
+
+The version is still there, in the binary rather than in the filename:
+`-version` prints the tag it was built from. That is the harder of the two
+places to fake, since anything between us and you can rename a file.
 
 ### The two paths give the same bytes, and you can check that
 
@@ -207,7 +221,8 @@ worth what its checker is worth.
 ```sh
 # ours, unpacked ANYWHERE EXCEPT the checkout (see the warning below)
 mkdir -p /tmp/verify && cd /tmp/verify
-tar -xzf ~/Downloads/agent-conform_v0.5.0_darwin_arm64.tar.gz
+curl -fsSLO https://github.com/TAIPANBOX/agent-stack-go/releases/latest/download/agent-conform_darwin_arm64.tar.gz
+tar -xzf agent-conform_darwin_arm64.tar.gz
 
 # yours, from a clean tree
 cd /path/to/your/agent-stack-go
@@ -217,7 +232,7 @@ CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath \
   -ldflags "-s -w -X main.version=v0.5.0" -o /tmp/verify/mine ./cmd/agent-conform
 
 sha256sum /tmp/verify/mine \
-  /tmp/verify/agent-conform_v0.5.0_darwin_arm64/agent-conform
+  /tmp/verify/agent-conform_darwin_arm64/agent-conform
 # macOS ships shasum -a 256 rather than sha256sum, and this example builds for
 # darwin, so that is probably the one you want
 ```
