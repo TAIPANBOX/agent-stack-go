@@ -205,22 +205,42 @@ places: this tool's output is a verdict about *your* system, and a verdict is
 worth what its checker is worth.
 
 ```sh
-# ours, from the release page, unpacked
-tar -xzf agent-conform_v0.5.0_darwin_arm64.tar.gz
+# ours, unpacked ANYWHERE EXCEPT the checkout (see the warning below)
+mkdir -p /tmp/verify && cd /tmp/verify
+tar -xzf ~/Downloads/agent-conform_v0.5.0_darwin_arm64.tar.gz
 
-# yours
+# yours, from a clean tree
+cd /path/to/your/agent-stack-go
 git checkout v0.5.0
+git status --porcelain      # must print nothing at all
 CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath \
-  -ldflags "-s -w -X main.version=v0.5.0" -o mine ./cmd/agent-conform
+  -ldflags "-s -w -X main.version=v0.5.0" -o /tmp/verify/mine ./cmd/agent-conform
 
-sha256sum mine agent-conform_v0.5.0_darwin_arm64/agent-conform
+sha256sum /tmp/verify/mine \
+  /tmp/verify/agent-conform_v0.5.0_darwin_arm64/agent-conform
 # macOS ships shasum -a 256 rather than sha256sum, and this example builds for
 # darwin, so that is probably the one you want
 ```
 
-Two identical digests. Measured on 5 August 2026 against the real `v0.5.0`
-assets, cross-compiled on an Ubuntu runner and rebuilt on macOS:
+Two identical digests. Measured on 5 August 2026 from a fresh clone against the
+real `v0.5.0` assets, cross-compiled on an Ubuntu runner and rebuilt on macOS:
 `fe8ccb5e1606129818981bfd6a7369a5a9dbc640bbec40640762d8d01c888ff5`.
+
+**Build from a clean tree, and do not unpack our archive inside it.** Go stamps
+`vcs.modified` into the binary, and **one untracked file anywhere in the
+checkout flips it to true**, which changes the bytes. The release is built from
+a clean CI checkout, so it carries `vcs.modified=false`. Unpacking the download
+into the repository before building is enough to break the comparison on its
+own: measured, `fe8ccb5e…` clean versus `ae64cf9b…` with a single untracked
+file beside it. `git status --porcelain` is in the recipe for that reason and
+is not decoration.
+
+The same trap has a second door. Building from a `git archive` extraction or a
+detached `git worktree` leaves Go unable to read the VCS at all, so it stamps no
+revision and records the module as `(devel)`. Both doors lead to a binary that
+legitimately differs from the release, and the difference looks enormous because
+a version string one byte shorter shifts everything after it. It is one field,
+not a different program.
 
 **Compare the binaries, not the archives.** `SHA256SUMS` on the release page
 lists the `.tar.gz` and `.zip` files, and it answers a different question: did
@@ -243,12 +263,6 @@ flags were measured
 against real published artifacts in the sibling repositories qryx and idryx on
 5 August 2026, each rebuilding to its release byte for byte from a different
 host OS.
-
-**Check it out, do not export it.** Building from a `git archive` extraction or
-a detached `git worktree` leaves Go unable to read the VCS, so it stamps no
-revision and records the module as `(devel)`. That binary genuinely differs from
-the release, and the difference looks enormous because a version string one byte
-shorter shifts everything after it. It is one field, not a different program.
 
 A different Go version will not reproduce these bytes either. `go.mod` pins the
 toolchain, and a digest is only meaningful beside the compiler that made it.
