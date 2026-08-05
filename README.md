@@ -177,6 +177,57 @@ go get github.com/TAIPANBOX/agent-stack-go@v0.4.0
 Pin to a tagged release, not to `@latest` and never to a local `replace`
 (see [Versioning](#versioning)).
 
+### The `agent-conform` binary, without a Go toolchain
+
+That line above serves anybody already writing Go. It served nobody who simply
+wanted to check a payload once, which is the more common reason to touch this
+repository at all: `agent-conform` decides whether a passport or an event stream
+conforms, and needing to install a compiler to run a checker is backwards.
+
+Prebuilt binaries for Linux, macOS and Windows, on x86_64 and arm64, are
+published on the [Releases page](https://github.com/TAIPANBOX/agent-stack-go/releases)
+for every `v*` tag, with a `SHA256SUMS` beside them.
+
+```sh
+tar -xzf agent-conform_v*_$(uname -s | tr A-Z a-z)_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz
+sha256sum -c SHA256SUMS --ignore-missing
+./agent-conform -version
+./agent-conform -chain passport.json
+```
+
+### The two paths give the same bytes, and you can check that
+
+Downloading the binary and building it yourself are not a choice between trust
+and effort. **They produce an identical file**, so you can take the fast path and
+still have somebody verify it afterwards. That matters more here than in most
+places: this tool's output is a verdict about *your* system, and a verdict is
+worth what its checker is worth.
+
+```sh
+git checkout v0.4.0
+CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath \
+  -ldflags "-s -w -X main.version=v0.4.0" -o mine ./cmd/agent-conform
+sha256sum mine        # compare with SHA256SUMS from the release page
+```
+
+Three flags make that work, `CGO_ENABLED=0`, `-trimpath` and `-s -w`, and losing
+any one would break it **silently**: the build would still succeed and only
+somebody trying to verify us would find out. CI therefore builds the same source
+in two directories of different lengths on every push and refuses if a byte
+differs (`scripts/reproducible-build.sh`). The same three flags were measured
+against real published artifacts in the sibling repositories qryx and idryx on
+5 August 2026, each rebuilding to its release byte for byte from a different
+host OS.
+
+**Check it out, do not export it.** Building from a `git archive` extraction or
+a detached `git worktree` leaves Go unable to read the VCS, so it stamps no
+revision and records the module as `(devel)`. That binary genuinely differs from
+the release, and the difference looks enormous because a version string one byte
+shorter shifts everything after it. It is one field, not a different program.
+
+A different Go version will not reproduce these bytes either. `go.mod` pins the
+toolchain, and a digest is only meaningful beside the compiler that made it.
+
 ## Usage
 
 ```go

@@ -69,13 +69,43 @@ const (
 	schemaEventV02 = "https://taipanbox.dev/agent-passport/v0.2/agent-event.schema.json"    // #nosec G101 -- a public schema $id URL, not a credential
 )
 
+// version is stamped at link time by the release workflow
+// (-ldflags "-X main.version=vX.Y.Z"). It stays "dev" in a plain `go build`,
+// which is the honest answer for a binary nobody released.
+//
+// This is not decoration on a conformance checker. Its whole output is a
+// verdict about somebody else's payload, and a verdict is worth what its
+// checker is worth: two versions of this tool can legitimately disagree when a
+// schema moves, so a report that cannot name the version that produced it is a
+// report nobody can re-run.
+var version = "dev"
+
 func main() {
 	args := os.Args[1:]
 	chain := false
-	if len(args) > 0 && args[0] == "-chain" {
-		chain = true
-		args = args[1:]
+	for len(args) > 0 {
+		switch args[0] {
+		case "-chain":
+			chain = true
+			args = args[1:]
+		case "-version", "--version", "version":
+			fmt.Printf("agent-conform %s\n", version)
+			return
+		case "-h", "-help", "--help":
+			fmt.Println("usage: agent-conform [-chain] <file>...")
+			fmt.Println()
+			fmt.Println("Validates passports and event envelopes against the embedded schemas.")
+			fmt.Println("  -chain      also check delegation chains: ordered root first, acyclic,")
+			fmt.Println("              at most 32 entries")
+			fmt.Println("  -version    print the version and exit")
+			fmt.Println()
+			fmt.Println("Exit codes: 0 conformant, 1 not conformant, 2 could not be read.")
+			return
+		default:
+			goto parsed
+		}
 	}
+parsed:
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "usage: agent-conform [-chain] <file>...")
 		os.Exit(2)
