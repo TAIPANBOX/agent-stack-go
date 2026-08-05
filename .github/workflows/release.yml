@@ -1,0 +1,74 @@
+name: release
+
+# Binaries for `agent-conform`, so checking whether your service conforms to
+# this contract does not begin with installing a Go toolchain and building our
+# checker.
+#
+# That was the state until 2026-08-05: the module has been importable with
+# `go get` since v0.2.0, which serves anybody already writing Go, and served
+# nobody who just wanted to run the tool once against a payload. A conformance
+# checker is exactly the artifact that should be obtainable without adopting
+# anything.
+#
+# The library half needs no release: `go get github.com/TAIPANBOX/agent-stack-go`
+# resolves from the tag. This publishes the command only.
+#
+# MONEY: nothing here is metered. Standard runners are free on a public
+# repository and no larger runner is requested.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          # Matches `toolchain` in go.mod. These two disagreeing is not a
+          # cosmetic problem: setup-go v6 pins GOTOOLCHAIN=local, so a mismatch
+          # stops being a silent extra download and becomes a hard failure.
+          go-version: "1.26.5"
+          cache: true
+
+      # The three flags below are what make a published binary rebuildable by
+      # somebody who does not trust us: CGO off so the output does not depend on
+      # a host toolchain, -trimpath so the build directory is not embedded, and
+      # -s -w so no build id or symbol table smuggles a path back in. They are
+      # the same three `scripts/reproducible-build.sh` checks on every push, and
+      # the two must stay identical: losing one here breaks verification in
+      # SILENCE, since the build still succeeds and only the person trying to
+      # verify us ever finds out.
+      - name: build matrix
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME}"
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64; do
+            GOOS="${target%/*}"; GOARCH="${target#*/}"
+            ext=""; [ "$GOOS" = "windows" ] && ext=".exe"
+            out="agent-conform_${VERSION}_${GOOS}_${GOARCH}"
+            CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" \
+              go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" \
+              -o "dist/${out}/agent-conform${ext}" ./cmd/agent-conform
+            if [ "$GOOS" = "windows" ]; then
+              (cd dist && zip -qr "${out}.zip" "${out}")
+            else
+              tar -C dist -czf "dist/${out}.tar.gz" "${out}"
+            fi
+            rm -r "dist/${out}"
+          done
+          (cd dist && sha256sum * > SHA256SUMS)
+          cat dist/SHA256SUMS
+
+      - name: create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --title "agent-stack-go ${GITHUB_REF_NAME}" --generate-notes

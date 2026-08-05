@@ -29,6 +29,14 @@ jobs:
       - name: library packages stay dependency-clean
         run: ./scripts/deps-layering.sh
 
+      # agent-conform decides whether somebody else's payload conforms. A
+      # verdict is worth what its checker is worth, so the checker has to be
+      # rebuildable by the person receiving the verdict. CGO_ENABLED=0,
+      # -trimpath and -s -w hold that, here and in release.yml, and losing one
+      # breaks it in silence.
+      - name: a release can be rebuilt byte for byte
+        run: ./scripts/reproducible-build.sh
+
   security:
     runs-on: ubuntu-latest
     steps:

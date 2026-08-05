@@ -132,6 +132,22 @@ had one, is worse than an absent invariant.
     *(test: `TestCheckFileEventOneBadLineFailsWholeFile`,
     `TestCheckFileBlankLinesSkippedNotCountedAsContent`)*
 
+11. **A published `agent-conform` can be rebuilt, byte for byte, by the person
+    receiving its verdict.** This tool decides whether somebody else's payload
+    conforms to the contract, and a verdict is worth what its checker is worth,
+    so the checker is the first thing a careful reader pins down. "The source is
+    open" is not an answer to them; it always was. Three flags hold it,
+    `CGO_ENABLED=0`, `-trimpath` and `-s -w`, and they must stay identical in
+    `scripts/reproducible-build.sh` and `.github/workflows/release.yml`. Losing
+    one breaks the property in **silence**: the build still succeeds, the
+    binaries stop matching, and the only person who finds out is the one trying
+    to verify us.
+    *(gate: `scripts/reproducible-build.sh`, which builds the same source in two
+    directories of deliberately different lengths and refuses if a byte differs;
+    verified by deleting `-trimpath`, which fails it. The same three flags were
+    measured against real published artifacts in qryx and idryx on 2026-08-05,
+    each rebuilding to its release byte for byte from a different host OS.)*
+
 ## Decisions that have no gate yet
 
 This list is debt, and it is here to stay visible rather than to be tidy.
