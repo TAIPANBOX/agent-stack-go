@@ -44,6 +44,31 @@ jobs:
       - name: a release can be rebuilt byte for byte
         run: ./scripts/reproducible-build.sh
 
+  # The schemas under cmd/agent-conform/schemas/ and in the packages' testdata
+  # are copies of files TAIPANBOX/agent-passport owns, vendored so the tool is
+  # one static binary and the tests run offline. A copy with nothing comparing
+  # it drifts: on 2026-08-05 the vendored Passport schema turned out to be
+  # missing SPEC 4.4 and 4.5 entirely, so agent-conform read a filesystem entry
+  # with a mode the spec does not have and printed OK.
+  #
+  # This needs a LAYOUT, not just a checkout. The sibling is checked out BESIDE
+  # this repo, exactly as it sits on a developer's machine, and the script's
+  # `cd .. && pwd` finds it. Both repos are public, so a standard runner costs
+  # nothing.
+  schemas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: agent-stack-go
+      - uses: actions/checkout@v7
+        with:
+          repository: TAIPANBOX/agent-passport
+          path: agent-passport
+      - name: the vendored schemas match the repo that owns them
+        working-directory: agent-stack-go
+        run: ./scripts/schemas-in-sync.sh
+
   security:
     runs-on: ubuntu-latest
     steps:

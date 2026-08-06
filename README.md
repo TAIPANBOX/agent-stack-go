@@ -7,9 +7,9 @@
 [![CI](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml/badge.svg)](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go)
 ![Go](https://img.shields.io/badge/go-1.26-00ADD8.svg)
-![tests](https://img.shields.io/badge/tests-67-brightgreen.svg)
+![tests](https://img.shields.io/badge/tests-85-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
-![Status](https://img.shields.io/badge/status-v0.5.0-success.svg)
+![Status](https://img.shields.io/badge/status-v0.5.1-success.svg)
 
 <img src="docs/architecture.png" alt="agent-stack-go: the passport, event and chain packages compose one shared contract, imported by tag by Idryx, Wardryx, Mockryx, Qryx, heraldyx and terraform-provider-taipan" width="960">
 
@@ -20,7 +20,7 @@ service in the TAIPANBOX agent-governance stack (Wardryx, Mockryx, and
 future siblings) needs to speak the same identity and event language as
 TokenFuse, Idryx, Qryx, and Engram. Idryx's equivalents live under
 `internal/` and cannot be imported outside that repo, which is why this
-module exists: one shared source, not four drifting copies.
+module exists: one shared source, not six drifting copies.
 
 The stack this module supports is a defensive, self-protection system: it
 exists so an organization running AI agents can govern and audit its own
@@ -70,7 +70,7 @@ flowchart TB
   SPEC[["agent-passport: the spec"]] -.->|governs| BUS
 ```
 
-- **Consumes**: the **agent-passport** spec, which its `passport` and `event` packages conform to (checked by a schema conformance test).
+- **Consumes**: the **agent-passport** spec, which its `passport` and `event` packages conform to (each checked by its own schema conformance test, against the canonical schema rather than against a copy of our own beliefs).
 - **Produces**: shared Go types for the Agent Passport document, the agent-event NDJSON envelope, and delegation-chain validation.
 - **Talks to**: imported by **Idryx**, **Wardryx**, **Mockryx**, **Qryx**, **heraldyx** and **terraform-provider-taipan**, so all six speak the same identity and event language as **TokenFuse** and **Engram**, which reach it through their own languages.
 
@@ -130,7 +130,10 @@ a verifier shows the restart honestly). `Canonicalize`/`ChainHash` are
 the exported primitives; `VerifyChain` walks a stream and reports
 genuine breaks separately from legal restarts and unverifiable links (a
 rotated segment's first line, or the line after a malformed one).
-`agent-conform -chain <file>` runs the same verification from the CLI.
+`agent-conform -chain <file>` runs the same verification from the CLI,
+alongside the `on_behalf_of` delegation check described under
+[`agent-conform`](#command-line-tool-agent-conform): two different chains,
+reported apart.
 The chain is tamper-EVIDENCE, not tamper-proof: whole-file rewrites can
 re-chain; partial edits, truncation and reordering no longer pass
 silently. Cross-language pinned vectors live in
@@ -180,7 +183,7 @@ autonomously.
 ## Install
 
 ```sh
-go get github.com/TAIPANBOX/agent-stack-go@v0.5.0
+go get github.com/TAIPANBOX/agent-stack-go@v0.5.1
 ```
 
 Pin to a tagged release, not to `@latest` and never to a local `replace`
@@ -211,7 +214,8 @@ sha256sum -c SHA256SUMS --ignore-missing
 
 tar -xzf agent-conform_$P.tar.gz
 ./agent-conform_$P/agent-conform -version
-./agent-conform_$P/agent-conform -chain passport.json
+./agent-conform_$P/agent-conform passport.json
+./agent-conform_$P/agent-conform -chain events.ndjson
 ```
 
 The version is still there, in the binary rather than in the filename:
@@ -227,17 +231,20 @@ places: this tool's output is a verdict about *your* system, and a verdict is
 worth what its checker is worth.
 
 ```sh
+# ONE tag on both sides. `agent-conform -version` prints the one you have.
+V=v0.5.0
+
 # ours, unpacked ANYWHERE EXCEPT the checkout (see the warning below)
 mkdir -p /tmp/verify && cd /tmp/verify
-curl -fsSLO https://github.com/TAIPANBOX/agent-stack-go/releases/latest/download/agent-conform_darwin_arm64.tar.gz
+curl -fsSLO https://github.com/TAIPANBOX/agent-stack-go/releases/download/$V/agent-conform_darwin_arm64.tar.gz
 tar -xzf agent-conform_darwin_arm64.tar.gz
 
 # yours, from a clean tree
 cd /path/to/your/agent-stack-go
-git checkout v0.5.0
+git checkout $V
 git status --porcelain      # must print nothing at all
 CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath \
-  -ldflags "-s -w -X main.version=v0.5.0" -o /tmp/verify/mine ./cmd/agent-conform
+  -ldflags "-s -w -X main.version=$V" -o /tmp/verify/mine ./cmd/agent-conform
 
 sha256sum /tmp/verify/mine \
   /tmp/verify/agent-conform_darwin_arm64/agent-conform
@@ -246,8 +253,22 @@ sha256sum /tmp/verify/mine \
 ```
 
 Two identical digests. Measured on 5 August 2026 from a fresh clone against the
-real `v0.5.0` assets, cross-compiled on an Ubuntu runner and rebuilt on macOS:
+real `v0.5.0` assets, cross-compiled on an Ubuntu runner and rebuilt on macOS,
+and rebuilt again on 6 August 2026 with Go 1.26.5 to the same value:
 `fe8ccb5e1606129818981bfd6a7369a5a9dbc640bbec40640762d8d01c888ff5`.
+
+**Both sides name one tag, and that is why `$V` is in the recipe rather than
+`latest`.** The download line used to say `releases/latest/download`, which was
+true for about an hour: v0.5.0 and v0.5.1 were tagged the same day, `latest`
+moved, and the recipe went on telling you to rebuild v0.5.0 and compare it
+against the v0.5.1 archive. Those two binaries differ by construction, since
+`-X main.version` stamps the tag into the bytes, so anybody following it got a
+mismatch and a good reason to think we were lying. `latest` is the right address
+for INSTALLING, where you want whatever is current; it is the wrong one for
+VERIFYING, where the whole job is comparing like with like. The digest above is
+`v0.5.0` because that is the pair that was measured end to end. Set `V` to the
+tag you actually installed and the recipe holds; the number it prints is then
+yours to compare, not one to look up here.
 
 **Build from a clean tree, and do not unpack our archive inside it.** Go stamps
 `vcs.modified` into the binary, and **one untracked file anywhere in the
@@ -334,7 +355,7 @@ func main() {
 ## Command-line tool: `agent-conform`
 
 ```sh
-go install github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform@v0.5.0
+go install github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform@v0.5.1
 agent-conform passport.json events.ndjson
 ```
 
@@ -352,6 +373,20 @@ schema validation, including patterns like the `agent://` URI grammar and
 connector in the stack already uses. Exit code 0 means every file (and
 every line within an event stream) conforms; 1 means at least one did not.
 
+`-chain` checks the two things "chain" means in this spec, and reports them
+apart because they answer different questions:
+
+| Check | Rule | What a failure means |
+|---|---|---|
+| `prev_hash` integrity chain | SPEC 6.5, via `event.VerifyChain` | the file was altered, truncated or reordered after it was written |
+| `on_behalf_of` delegation chain | SPEC 5.1, via `chain.Validate`: acyclic, at most 32 entries, every entry an `agent://` or `user://` URI | the identity claim inside the event never made sense, which points at the emitter rather than at whoever has held the file since |
+
+A stream can pass either one and fail the other, which is the reason for two
+verdicts rather than one. Root-first ordering is deliberately not claimed: it
+is a property of how a chain was built, one entry appended per hop, and a list
+of URIs after the fact carries nothing that could distinguish a root-first
+chain from a reversed one.
+
 ## Design notes
 
 - Stdlib only at runtime for `passport` and `chain`: no third-party
@@ -361,7 +396,9 @@ every line within an event stream) conforms; 1 means at least one did not.
   `VerifyChain`, see above). `github.com/santhosh-tekuri/jsonschema/v6` is
   used by `event`'s conformance test and, as a real (non-test) dependency,
   by `cmd/agent-conform` -- a consumer importing only the library packages
-  never pulls in jsonschema; only building the standalone tool does.
+  never pulls in jsonschema; only building the standalone tool does. The same
+  holds for `passport`'s conformance test, which is why
+  `scripts/deps-layering.sh` reads non-test imports only.
 - Each package mirrors an existing internal implementation elsewhere in the
   stack (Idryx's `internal/ingest/passport` and `internal/ingest/tokenfuse`,
   TokenFuse's `tokenfuse-core::agent_event`, Engram's `engram.events`) rather
@@ -373,19 +410,31 @@ every line within an event stream) conforms; 1 means at least one did not.
   counted, never fatal to the rest of a batch.
 
 The canonical JSON Schemas live in the `TAIPANBOX/agent-passport` repo.
-`event/testdata/agent-event.v0.2.schema.json` is a local copy used only by
-this module's conformance test, so the Go bindings can never silently drift
-out of lockstep with the schema that defines the wire contract.
+`event/testdata/agent-event.v0.2.schema.json` and
+`passport/testdata/schema/agent-passport.schema.json` are local copies used only by
+those packages' conformance tests, so the Go bindings can never silently drift
+out of lockstep with the schemas that define the wire contract.
 `cmd/agent-conform/schemas/*.json` are separate local copies of all three
 schemas (Passport, event v0.1, event v0.2), embedded into that tool via
 `go:embed` for the same reason.
+
+Copies drift, so on every push CI checks out agent-passport beside this repo
+and compares every one of them against the file it was copied from, byte for
+byte (`scripts/schemas-in-sync.sh`). That check exists because the vendored
+Passport schema had drifted: it was missing the `filesystem` (SPEC 4.4) and
+`models` (SPEC 4.5) declarations, and a Passport document allows
+`additionalProperties`, so a property the schema does not declare is not
+checked loosely, it is not looked at at all. A passport whose filesystem entry
+said `"mode": "delete"`, a mode the spec does not have, passed with `OK`. The
+schema is synced and both fields are now enforced; the gate is there so the
+next divergence is caught by CI rather than by a reader.
 
 ## Versioning
 
 This module follows SemVer, starting at `v0.1.0`. Breaking the wire contract
 (the `passport` or `event` schema) is a spec version bump, never a silent
 change; the Go types version alongside the module itself. Consumers pin it
-by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.5.0`), never a local
+by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.5.1`), never a local
 `replace`.
 
 ---
@@ -395,9 +444,13 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.5.0`), never a local
 - [x] `passport`: `Parse`, `ValidateAgentURI`, `ValidateUserURI`, sentinel errors
 - [x] `event`: `Marshal`, `Unmarshal`, append-only `Writer`, `Scan`/`ReadFile` NDJSON readers, `ChainedWriter`/`VerifyChain` SPEC 6.5 `prev_hash` integrity chain, `Canonicalize`/`ChainHash`
 - [x] `chain`: `Append`, `Validate`, `MaxDepth` = 32, acyclic + root-first
-- [x] conformance test against the canonical `agent-event` v0.2 JSON Schema
+- [x] conformance tests against the canonical JSON Schemas, one per bound type:
+  `event` against `agent-event` v0.2, `passport` against `agent-passport` v0.1,
+  including a both-directions check that the struct's json tags and the schema's
+  properties name the same set (a mistyped tag validates fine, since
+  `additionalProperties` is true, and declares nothing)
 - [x] `passport.LoadDir`: shared batch loader (resolve dir/glob/file, sorted, tolerant, first-seen-id dedup), extracted out of Wardryx's and Idryx's independent copies
-- [x] `v0.5.0` tagged, the first release to publish `agent-conform` as a binary; CI green on `gofmt`, `go vet`, `staticcheck`, `go test -race`, `go build`, `govulncheck`
+- [x] `v0.5.0` tagged, the first release to publish `agent-conform` as a binary, then `v0.5.1` the same day, which is what the install lines above pin: it moved the version out of the release asset names and into the binary, so `releases/latest/download/<name>` is a permanent address; CI green on `gofmt`, `go vet`, `staticcheck`, `go test -race`, `go build`, `govulncheck`
 - [x] `cmd/agent-conform`: standalone conformance-check CLI, full JSON Schema
   validation (Passport documents + event v0.1/v0.2) against embedded copies
   of the canonical schemas; live-verified against real fixtures elsewhere

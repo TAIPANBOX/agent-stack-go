@@ -55,7 +55,7 @@
 <text x="640.0" y="407" font-size="14" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="middle">shared contract</text>
 <text x="640.0" y="427" font-size="11" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="middle">Go structs + JSON tags, stdlib only</text>
 <rect x="595.0" y="441" width="90" height="24" rx="12" ry="12" fill="none" stroke="#2dd4bf" stroke-width="1.4"/>
-<text x="640.0" y="457" font-size="11" fill="#2dd4bf" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="middle" letter-spacing="0.5">v0.1.0</text>
+<text x="640.0" y="457" font-size="11" fill="#2dd4bf" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="middle" letter-spacing="0.5">v0.5.1</text>
 <path d="M 304 240.0 C 407.0 240.0, 407.0 410.0, 510 410.0" fill="none" stroke="#2dd4bf" stroke-width="1.6" opacity="0.6"/>
 <path d="M 304 410.0 C 407.0 410.0, 407.0 410.0, 510 410.0" fill="none" stroke="#2dd4bf" stroke-width="1.6" opacity="0.6"/>
 <path d="M 304 580.0 C 407.0 580.0, 407.0 410.0, 510 410.0" fill="none" stroke="#2dd4bf" stroke-width="1.6" opacity="0.6"/>
@@ -66,31 +66,46 @@
 <text x="540.0" y="583" font-size="11" fill="#4493f8" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="middle" letter-spacing="0.5">agent-event/v0.2</text>
 <rect x="655.0" y="567" width="170" height="24" rx="12" ry="12" fill="none" stroke="#2dd4bf" stroke-width="1.4"/>
 <text x="740.0" y="583" font-size="11" fill="#2dd4bf" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="middle" letter-spacing="0.5">agent-passport/v0.1</text>
-<rect x="976" y="172" width="248" height="70" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
-<rect x="976" y="172" width="4" height="70" rx="2" ry="2" fill="#2dd4bf" stroke="#283341" stroke-width="1"/>
-<text x="994" y="187" font-size="9" fill="#3fb950" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1">IMPORTS</text>
-<text x="994" y="206" font-size="14.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="start">Idryx</text>
-<text x="994" y="226" font-size="11" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">identity graph, detectors, Agent-BOM</text>
-<rect x="976" y="256" width="248" height="70" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
-<rect x="976" y="256" width="4" height="70" rx="2" ry="2" fill="#4493f8" stroke="#283341" stroke-width="1"/>
-<text x="994" y="271" font-size="9" fill="#3fb950" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1">IMPORTS</text>
-<text x="994" y="290" font-size="14.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="start">Wardryx</text>
-<text x="994" y="310" font-size="11" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">policy PDP: allow / deny / hold</text>
-<rect x="976" y="340" width="248" height="70" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
-<rect x="976" y="340" width="4" height="70" rx="2" ry="2" fill="#2dd4bf" stroke="#283341" stroke-width="1"/>
-<text x="994" y="355" font-size="9" fill="#3fb950" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1">IMPORTS</text>
-<text x="994" y="374" font-size="14.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="start">Mockryx</text>
-<text x="994" y="394" font-size="11" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">pre-prod safety rehearsal</text>
-<rect x="976" y="424" width="248" height="70" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
-<rect x="976" y="424" width="4" height="70" rx="2" ry="2" fill="#4493f8" stroke="#283341" stroke-width="1"/>
-<text x="994" y="439" font-size="9" fill="#3fb950" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1">IMPORTS</text>
-<text x="994" y="458" font-size="12.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="start">terraform-provider-taipan</text>
-<text x="994" y="478" font-size="11" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">budgets + passports as code</text>
-<path d="M 770 410.0 C 873.0 410.0, 873.0 207.0, 976 207.0" fill="none" stroke="#2dd4bf" stroke-width="1.6" opacity="0.55" stroke-dasharray="5,4"/>
-<path d="M 976 207.0 l -9 -5 l 0 10 z" fill="#2dd4bf"/>
-<path d="M 770 410.0 C 873.0 410.0, 873.0 291.0, 976 291.0" fill="none" stroke="#4493f8" stroke-width="1.6" opacity="0.55" stroke-dasharray="5,4"/>
-<path d="M 976 291.0 l -9 -5 l 0 10 z" fill="#4493f8"/>
-<path d="M 770 410.0 C 873.0 410.0, 873.0 375.0, 976 375.0" fill="none" stroke="#2dd4bf" stroke-width="1.6" opacity="0.55" stroke-dasharray="5,4"/>
-<path d="M 976 375.0 l -9 -5 l 0 10 z" fill="#2dd4bf"/>
-<path d="M 770 410.0 C 873.0 410.0, 873.0 459.0, 976 459.0" fill="none" stroke="#4493f8" stroke-width="1.6" opacity="0.55" stroke-dasharray="5,4"/>
-<path d="M 976 459.0 l -9 -5 l 0 10 z" fill="#4493f8"/></svg>
+<rect x="976" y="165" width="248" height="70" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
+<rect x="976" y="165" width="4" height="70" rx="2" ry="2" fill="#2dd4bf" stroke="#283341" stroke-width="1"/>
+<text x="994" y="180" font-size="9" fill="#3fb950" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1">IMPORTS</text>
+<text x="994" y="199" font-size="14.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="start">Idryx</text>
+<text x="994" y="219" font-size="11" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">identity graph, detectors, Agent-BOM</text>
+<rect x="976" y="249" width="248" height="70" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
+<rect x="976" y="249" width="4" height="70" rx="2" ry="2" fill="#4493f8" stroke="#283341" stroke-width="1"/>
+<text x="994" y="264" font-size="9" fill="#3fb950" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1">IMPORTS</text>
+<text x="994" y="283" font-size="14.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="start">Wardryx</text>
+<text x="994" y="303" font-size="11" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">policy PDP: allow / deny / hold</text>
+<rect x="976" y="333" width="248" height="70" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
+<rect x="976" y="333" width="4" height="70" rx="2" ry="2" fill="#2dd4bf" stroke="#283341" stroke-width="1"/>
+<text x="994" y="348" font-size="9" fill="#3fb950" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1">IMPORTS</text>
+<text x="994" y="367" font-size="14.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="start">Mockryx</text>
+<text x="994" y="387" font-size="11" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">pre-prod safety rehearsal</text>
+<rect x="976" y="417" width="248" height="70" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
+<rect x="976" y="417" width="4" height="70" rx="2" ry="2" fill="#4493f8" stroke="#283341" stroke-width="1"/>
+<text x="994" y="432" font-size="9" fill="#3fb950" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1">IMPORTS</text>
+<text x="994" y="451" font-size="14.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="start">Qryx</text>
+<text x="994" y="471" font-size="11" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">crypto / PQC, passport + chain scan</text>
+<rect x="976" y="501" width="248" height="70" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
+<rect x="976" y="501" width="4" height="70" rx="2" ry="2" fill="#2dd4bf" stroke="#283341" stroke-width="1"/>
+<text x="994" y="516" font-size="9" fill="#3fb950" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1">IMPORTS</text>
+<text x="994" y="535" font-size="14.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="start">heraldyx</text>
+<text x="994" y="555" font-size="11" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">reads the log, mails you</text>
+<rect x="976" y="585" width="248" height="70" rx="10" ry="10" fill="#1b2331" stroke="#222b38" stroke-width="1"/>
+<rect x="976" y="585" width="4" height="70" rx="2" ry="2" fill="#4493f8" stroke="#283341" stroke-width="1"/>
+<text x="994" y="600" font-size="9" fill="#3fb950" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="700" text-anchor="start" letter-spacing="1">IMPORTS</text>
+<text x="994" y="619" font-size="12.5" fill="#e6edf3" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif" font-weight="600" text-anchor="start">terraform-provider-taipan</text>
+<text x="994" y="639" font-size="11" fill="#69788b" font-family="'SF Mono','JetBrains Mono','Fira Code',Menlo,Consolas,'Liberation Mono',monospace" font-weight="400" text-anchor="start">budgets + passports as code</text>
+<path d="M 770 410.0 C 873.0 410.0, 873.0 200.0, 976 200.0" fill="none" stroke="#2dd4bf" stroke-width="1.6" opacity="0.55" stroke-dasharray="5,4"/>
+<path d="M 976 200.0 l -9 -5 l 0 10 z" fill="#2dd4bf"/>
+<path d="M 770 410.0 C 873.0 410.0, 873.0 284.0, 976 284.0" fill="none" stroke="#4493f8" stroke-width="1.6" opacity="0.55" stroke-dasharray="5,4"/>
+<path d="M 976 284.0 l -9 -5 l 0 10 z" fill="#4493f8"/>
+<path d="M 770 410.0 C 873.0 410.0, 873.0 368.0, 976 368.0" fill="none" stroke="#2dd4bf" stroke-width="1.6" opacity="0.55" stroke-dasharray="5,4"/>
+<path d="M 976 368.0 l -9 -5 l 0 10 z" fill="#2dd4bf"/>
+<path d="M 770 410.0 C 873.0 410.0, 873.0 452.0, 976 452.0" fill="none" stroke="#4493f8" stroke-width="1.6" opacity="0.55" stroke-dasharray="5,4"/>
+<path d="M 976 452.0 l -9 -5 l 0 10 z" fill="#4493f8"/>
+<path d="M 770 410.0 C 873.0 410.0, 873.0 536.0, 976 536.0" fill="none" stroke="#2dd4bf" stroke-width="1.6" opacity="0.55" stroke-dasharray="5,4"/>
+<path d="M 976 536.0 l -9 -5 l 0 10 z" fill="#2dd4bf"/>
+<path d="M 770 410.0 C 873.0 410.0, 873.0 620.0, 976 620.0" fill="none" stroke="#4493f8" stroke-width="1.6" opacity="0.55" stroke-dasharray="5,4"/>
+<path d="M 976 620.0 l -9 -5 l 0 10 z" fill="#4493f8"/>
+</svg>
