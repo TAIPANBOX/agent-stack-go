@@ -70,6 +70,7 @@ staticcheck ./...
 go test -race ./...
 go build ./...
 ./scripts/deps-layering.sh
+./scripts/schemas-in-sync.sh   # needs TAIPANBOX/agent-passport checked out beside this repo
 ```
 
 `make lint` runs gofmt plus vet plus staticcheck. Note that `make staticcheck`
@@ -174,6 +175,39 @@ had one, is worse than an absent invariant.
     finds no asset name at all, because a check that goes green once its subject
     has vanished is worse than no check. Verified by breaking: putting the version
     back fails it in all four repositories that share this shape.)*
+
+13. **Every vendored schema is byte-identical to the copy agent-passport
+    owns.** This module does not define the wire contract, it implements one,
+    and the schemas under `cmd/agent-conform/schemas/` and in the packages'
+    `testdata/` are copies, vendored so the tool is one static binary and the
+    tests run offline. Copies drift; preventing exactly that is why this repo
+    exists, so a copy of somebody else's file with nothing comparing the two is
+    this repo's own failure mode one level down.
+    *(gate: `scripts/schemas-in-sync.sh`, which compares every tracked file
+    named like a canonical schema against `../agent-passport/schemas/`, byte
+    for byte. Copies are discovered rather than listed, so a new one is covered
+    the day it is committed. It refuses when the sibling is absent, when it
+    found nothing to compare, and when this repo holds a schema-shaped file
+    agent-passport does not own. Verified by breaking, three ways: a drifted
+    copy, a missing sibling, and a canonical set sharing no names with ours,
+    each of which fails it. CI checks the sibling out beside this repo in the
+    `schemas` job.)*
+
+    Added 2026-08-05, after the vendored Passport schema was found to be 69
+    lines against the canonical 114: the whole `filesystem` (SPEC 4.4) and
+    `models` (SPEC 4.5) declarations were missing. The way it failed is the
+    part worth keeping. A Passport allows `additionalProperties`, so a property
+    the schema does not DECLARE is not checked loosely, it is not looked at at
+    all: `agent-conform` read `"mode": "delete"`, a mode SPEC 4.4 does not
+    have, and printed `OK` under what the README calls full schema validation.
+    A silent pass on a field nobody validates is worse than a missing check,
+    because it is indistinguishable from a real one.
+
+    The canonical is read from its default branch, unpinned. A change over
+    there turns this red with no change here, and that is the signal rather
+    than the bug. A recorded digest was the alternative and was rejected: it
+    holds our own side of the agreement only, which is the shape invariant 11
+    exists to name.
 
 ## Decisions that have no gate yet
 

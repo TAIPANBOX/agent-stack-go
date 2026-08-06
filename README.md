@@ -7,7 +7,7 @@
 [![CI](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml/badge.svg)](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go)
 ![Go](https://img.shields.io/badge/go-1.26-00ADD8.svg)
-![tests](https://img.shields.io/badge/tests-67-brightgreen.svg)
+![tests](https://img.shields.io/badge/tests-71-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-v0.5.0-success.svg)
 
@@ -379,6 +379,17 @@ out of lockstep with the schema that defines the wire contract.
 `cmd/agent-conform/schemas/*.json` are separate local copies of all three
 schemas (Passport, event v0.1, event v0.2), embedded into that tool via
 `go:embed` for the same reason.
+
+Copies drift, so on every push CI checks out agent-passport beside this repo
+and compares every one of them against the file it was copied from, byte for
+byte (`scripts/schemas-in-sync.sh`). That check exists because the vendored
+Passport schema had drifted: it was missing the `filesystem` (SPEC 4.4) and
+`models` (SPEC 4.5) declarations, and a Passport document allows
+`additionalProperties`, so a property the schema does not declare is not
+checked loosely, it is not looked at at all. A passport whose filesystem entry
+said `"mode": "delete"`, a mode the spec does not have, passed with `OK`. The
+schema is synced and both fields are now enforced; the gate is there so the
+next divergence is caught by CI rather than by a reader.
 
 ## Versioning
 

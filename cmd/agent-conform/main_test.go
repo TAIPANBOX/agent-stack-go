@@ -102,6 +102,50 @@ func TestCheckFileInvalidPassportMissingRequiredField(t *testing.T) {
 	}
 }
 
+// The SPEC 4.4 filesystem and SPEC 4.5 models declarations are the auditable
+// declared side of the declared-versus-coded-versus-observed comparison, so a
+// malformed entry in either is exactly what somebody runs this tool to find.
+// additionalProperties is true on a Passport document, which means a schema
+// that does not DECLARE these two fields does not merely check them loosely:
+// it does not look at them at all, and reports OK.
+
+func TestCheckFilePassportValidFilesystemAndModels(t *testing.T) {
+	s := mustLoadSchemas(t)
+	path := writeFile(t, "p.json", `{"schema":"taipanbox.dev/agent-passport/v0.1","id":"agent://acme.example/data/etl","owner":"team-data@acme.example","filesystem":[{"path":"/data/reports","mode":"read"},{"path":"/data/out","mode":"write"}],"models":[{"provider":"anthropic","model":"claude-sonnet-4-5","endpoint":"api.anthropic.com"},{"provider":"openai"}]}`)
+	if !checkFile(s, path, false) {
+		t.Error("expected a Passport declaring well-formed filesystem and models entries to conform")
+	}
+}
+
+func TestCheckFilePassportMalformedFilesystemMode(t *testing.T) {
+	s := mustLoadSchemas(t)
+	// mode is an enum of read|write per SPEC 4.4. "delete" is not a mode, and
+	// a passport claiming one is a declaration nobody can audit.
+	path := writeFile(t, "p.json", `{"schema":"taipanbox.dev/agent-passport/v0.1","id":"agent://acme.example/data/etl","owner":"team-data@acme.example","filesystem":[{"path":"/data/out","mode":"delete"}]}`)
+	if checkFile(s, path, false) {
+		t.Error("expected a filesystem entry with mode \"delete\" to fail the SPEC 4.4 read|write enum")
+	}
+}
+
+func TestCheckFilePassportFilesystemEntryMissingPath(t *testing.T) {
+	s := mustLoadSchemas(t)
+	// path and mode are both required per SPEC 4.4.
+	path := writeFile(t, "p.json", `{"schema":"taipanbox.dev/agent-passport/v0.1","id":"agent://acme.example/data/etl","owner":"team-data@acme.example","filesystem":[{"mode":"read"}]}`)
+	if checkFile(s, path, false) {
+		t.Error("expected a filesystem entry with no path to fail the SPEC 4.4 required-field rule")
+	}
+}
+
+func TestCheckFilePassportModelMissingProvider(t *testing.T) {
+	s := mustLoadSchemas(t)
+	// provider is the one required key of a models entry per SPEC 4.5: an
+	// endpoint with no provider names nothing an inventory can compare against.
+	path := writeFile(t, "p.json", `{"schema":"taipanbox.dev/agent-passport/v0.1","id":"agent://acme.example/data/etl","owner":"team-data@acme.example","models":[{"model":"claude-sonnet-4-5","endpoint":"api.anthropic.com"}]}`)
+	if checkFile(s, path, false) {
+		t.Error("expected a models entry with no provider to fail the SPEC 4.5 required-field rule")
+	}
+}
+
 // ------------------------------------------------------------------
 // checkFile: event streams
 // ------------------------------------------------------------------
