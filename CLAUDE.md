@@ -109,7 +109,12 @@ had one, is worse than an absent invariant.
    `MaxDepth` (32) entries, every entry an `agent://` or `user://` URI, and an
    empty chain is valid and means the agent acts autonomously. A service
    appends exactly one entry, its own principal, and rejects a chain already
-   containing it. *(test: `TestAppend`, `TestAppendCycle`)*
+   containing it. Root-first ordering is a property of how a chain was BUILT
+   and cannot be verified from the finished list, so nothing here may claim to
+   check it. *(test: `TestAppend`, `TestAppendCycle`, and from the CLI side
+   `TestChainReportsACyclicDelegationChain`,
+   `TestChainReportsAnOverlongDelegationChain`,
+   `TestChainReportsTheTwoFailureKindsDistinctly`)*
 6. **`prev_hash` is computed over RFC 8785 canonical JSON with the `prev_hash`
    field removed by construction, never by string surgery**, and always
    carries the `sha256:` prefix. Removing the field textually is the bug this

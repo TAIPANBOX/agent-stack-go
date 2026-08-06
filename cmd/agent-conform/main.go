@@ -16,14 +16,30 @@
 //
 //	agent-conform [-chain] <file>...
 //
-// With -chain, every event-stream file is ADDITIONALLY verified as a
-// prev_hash integrity chain (SPEC §6.5, via package event's VerifyChain):
-// a genuine break (a prev_hash that does not match the hash of the line
-// before it) fails the file. Chain restarts (a later line with no
-// prev_hash) and unverifiable links (after a malformed line, or a stream
-// that opens mid-chain, e.g. a rotated segment) are reported but do not
-// fail: the field is optional by spec, and only a mismatch is evidence of
-// tampering or loss.
+// With -chain, every event-stream file is ADDITIONALLY checked in two ways,
+// against the two things the word "chain" means in this spec. They are
+// reported separately because they mean different things to whoever reads
+// the report: one says the file was altered after it was written, the other
+// says the identity claim inside it never made sense.
+//
+//   - The prev_hash INTEGRITY chain (SPEC §6.5, via package event's
+//     VerifyChain). A genuine break, a prev_hash that does not match the
+//     hash of the line before it, fails the file. Chain restarts (a later
+//     line with no prev_hash) and unverifiable links (after a malformed
+//     line, or a stream that opens mid-chain, e.g. a rotated segment) are
+//     reported but do not fail: the field is optional by spec, and only a
+//     mismatch is evidence of tampering or loss.
+//
+//   - The on_behalf_of DELEGATION chain (SPEC §5.1, via package chain's
+//     Validate). Acyclic, at most chain.MaxDepth (32) entries, every entry
+//     an agent:// or user:// URI. Any violation fails the file. An empty
+//     chain is valid and means the agent acted autonomously.
+//
+// Root-first ordering is deliberately NOT claimed here. It is a property of
+// how a chain was built, one entry appended per hop by chain.Append, and a
+// list of URIs after the fact carries nothing that could distinguish a
+// root-first chain from a reversed one. A checker that said it verified
+// ordering would be describing a check nobody can write.
 //
 // Each file is classified by content, not extension -- the same
 // classify-by-schema-field convention every connector in the stack already
@@ -52,6 +68,7 @@ import (
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
+	"github.com/TAIPANBOX/agent-stack-go/chain"
 	"github.com/TAIPANBOX/agent-stack-go/event"
 )
 
@@ -95,8 +112,10 @@ func main() {
 			fmt.Println("usage: agent-conform [-chain] <file>...")
 			fmt.Println()
 			fmt.Println("Validates passports and event envelopes against the embedded schemas.")
-			fmt.Println("  -chain      also check delegation chains: ordered root first, acyclic,")
-			fmt.Println("              at most 32 entries")
+			fmt.Println("  -chain      also check both chains in an event stream, reported apart:")
+			fmt.Println("              the prev_hash integrity chain (SPEC 6.5), and each event's")
+			fmt.Println("              on_behalf_of delegation chain (SPEC 5.1: acyclic, at most 32")
+			fmt.Println("              entries, every entry an agent:// or user:// URI)")
 			fmt.Println("  -version    print the version and exit")
 			fmt.Println()
 			fmt.Println("Exit codes: 0 conformant, 1 not conformant, 2 could not be read.")
@@ -188,8 +207,9 @@ func addEmbedded(c *jsonschema.Compiler, embeddedPath, url string) error {
 // (a Passport document is one record; an event stream is one record per
 // NDJSON line), and returns whether every record in it conformed. With
 // chain set, an event stream must additionally pass the SPEC §6.5
-// prev_hash verification (checkChain); -chain has no meaning for a
-// Passport document, which is one object with no stream to chain.
+// prev_hash verification (checkChain) and the SPEC §5.1 delegation-chain
+// rules (checkDelegation); -chain has no meaning for a Passport document,
+// which is one object with no stream to chain and no on_behalf_of.
 func checkFile(schemas *compiledSchemas, path string, chain bool) bool {
 	raw, err := os.ReadFile(path) // #nosec G304 G703 -- path is the operator's own CLI argument, same trust model as any file the invoking user names
 	if err != nil {
@@ -208,7 +228,11 @@ func checkFile(schemas *compiledSchemas, path string, chain bool) bool {
 
 	ok := checkEventStream(schemas, trimmed, path)
 	if chain {
+		// Both, always, and never one instead of the other: a stream can be
+		// unaltered and still carry a delegation chain that means nothing,
+		// and a stream with impeccable delegation can have been edited.
 		ok = checkChain(trimmed, path) && ok
+		ok = checkDelegation(trimmed, path) && ok
 	}
 	return ok
 }
@@ -235,7 +259,75 @@ func checkChain(raw []byte, path string) bool {
 	if !report.Ok() {
 		return false
 	}
-	fmt.Printf("PASS %s (chain: %d chained, %d head(s))\n", path, report.Chained, len(report.HeadLines))
+	fmt.Printf("PASS %s (hash chain: %d chained, %d head(s))\n", path, report.Chained, len(report.HeadLines))
+	return true
+}
+
+// checkDelegation runs the SPEC §5.1 delegation-chain rules over every
+// event in a stream: acyclic, at most chain.MaxDepth entries, every entry
+// an agent:// or user:// URI. An absent or empty on_behalf_of is valid and
+// means the agent acted autonomously, so it is neither a failure nor worth
+// a line.
+//
+// This is a different question from checkChain's, and the output says which
+// one failed. A prev_hash break says somebody altered the file after it was
+// written. A delegation-chain violation says the identity claim inside it
+// never made sense in the first place, and it was true the moment the line
+// was emitted, so it points at the emitter rather than at whoever held the
+// file since. Collapsing the two into one verdict would cost the reader the
+// only thing that tells them where to look.
+//
+// The event schemas cannot carry this rule: they constrain the SHAPE of an
+// on_behalf_of entry, a string matching ^(agent|user)://, with no cap and
+// no uniqueness, both of which need to look at the array as a whole.
+//
+// Malformed lines are skipped in silence: checkEventStream has already
+// failed the file for each of them, and saying it twice in different words
+// reads like two problems.
+func checkDelegation(raw []byte, path string) bool {
+	allOK := true
+	events, withChain, deepest, lineNo := 0, 0, 0, 0
+
+	sc := bufio.NewScanner(bytes.NewReader(raw))
+	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
+	for sc.Scan() {
+		lineNo++
+		line := bytes.TrimSpace(sc.Bytes())
+		if len(line) == 0 {
+			continue
+		}
+		e, err := event.Unmarshal(line)
+		if err != nil {
+			continue
+		}
+		events++
+		if len(e.OnBehalfOf) == 0 {
+			continue
+		}
+		withChain++
+		if len(e.OnBehalfOf) > deepest {
+			deepest = len(e.OnBehalfOf)
+		}
+		if err := chain.Validate(e.OnBehalfOf); err != nil {
+			fmt.Printf("FAIL %s:%d: delegation chain (on_behalf_of, SPEC 5.1): %v\n", path, lineNo, err)
+			allOK = false
+		}
+	}
+	if err := sc.Err(); err != nil {
+		fmt.Printf("FAIL %s: delegation chain: %v\n", path, err)
+		return false
+	}
+	if events == 0 {
+		// Nothing parsed, so nothing was checked. Saying PASS here would be a
+		// verdict about a file this function never read.
+		fmt.Printf("NOTE %s: no parsable event, so no delegation chain was checked\n", path)
+		return allOK
+	}
+	if !allOK {
+		return false
+	}
+	fmt.Printf("PASS %s (delegation: %d event(s), %d carrying a chain, deepest %d of %d)\n",
+		path, events, withChain, deepest, chain.MaxDepth)
 	return true
 }
 

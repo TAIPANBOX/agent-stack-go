@@ -7,7 +7,7 @@
 [![CI](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml/badge.svg)](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go)
 ![Go](https://img.shields.io/badge/go-1.26-00ADD8.svg)
-![tests](https://img.shields.io/badge/tests-71-brightgreen.svg)
+![tests](https://img.shields.io/badge/tests-76-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-v0.5.0-success.svg)
 
@@ -130,7 +130,10 @@ a verifier shows the restart honestly). `Canonicalize`/`ChainHash` are
 the exported primitives; `VerifyChain` walks a stream and reports
 genuine breaks separately from legal restarts and unverifiable links (a
 rotated segment's first line, or the line after a malformed one).
-`agent-conform -chain <file>` runs the same verification from the CLI.
+`agent-conform -chain <file>` runs the same verification from the CLI,
+alongside the `on_behalf_of` delegation check described under
+[`agent-conform`](#command-line-tool-agent-conform): two different chains,
+reported apart.
 The chain is tamper-EVIDENCE, not tamper-proof: whole-file rewrites can
 re-chain; partial edits, truncation and reordering no longer pass
 silently. Cross-language pinned vectors live in
@@ -211,7 +214,8 @@ sha256sum -c SHA256SUMS --ignore-missing
 
 tar -xzf agent-conform_$P.tar.gz
 ./agent-conform_$P/agent-conform -version
-./agent-conform_$P/agent-conform -chain passport.json
+./agent-conform_$P/agent-conform passport.json
+./agent-conform_$P/agent-conform -chain events.ndjson
 ```
 
 The version is still there, in the binary rather than in the filename:
@@ -351,6 +355,20 @@ schema validation, including patterns like the `agent://` URI grammar and
 `schema` field, not extension, mirroring the same convention every
 connector in the stack already uses. Exit code 0 means every file (and
 every line within an event stream) conforms; 1 means at least one did not.
+
+`-chain` checks the two things "chain" means in this spec, and reports them
+apart because they answer different questions:
+
+| Check | Rule | What a failure means |
+|---|---|---|
+| `prev_hash` integrity chain | SPEC 6.5, via `event.VerifyChain` | the file was altered, truncated or reordered after it was written |
+| `on_behalf_of` delegation chain | SPEC 5.1, via `chain.Validate`: acyclic, at most 32 entries, every entry an `agent://` or `user://` URI | the identity claim inside the event never made sense, which points at the emitter rather than at whoever has held the file since |
+
+A stream can pass either one and fail the other, which is the reason for two
+verdicts rather than one. Root-first ordering is deliberately not claimed: it
+is a property of how a chain was built, one entry appended per hop, and a list
+of URIs after the fact carries nothing that could distinguish a root-first
+chain from a reversed one.
 
 ## Design notes
 
