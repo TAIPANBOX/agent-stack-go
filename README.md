@@ -7,7 +7,7 @@
 [![CI](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml/badge.svg)](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go)
 ![Go](https://img.shields.io/badge/go-1.26-00ADD8.svg)
-![tests](https://img.shields.io/badge/tests-76-brightgreen.svg)
+![tests](https://img.shields.io/badge/tests-85-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-v0.5.0-success.svg)
 
@@ -70,7 +70,7 @@ flowchart TB
   SPEC[["agent-passport: the spec"]] -.->|governs| BUS
 ```
 
-- **Consumes**: the **agent-passport** spec, which its `passport` and `event` packages conform to (checked by a schema conformance test).
+- **Consumes**: the **agent-passport** spec, which its `passport` and `event` packages conform to (each checked by its own schema conformance test, against the canonical schema rather than against a copy of our own beliefs).
 - **Produces**: shared Go types for the Agent Passport document, the agent-event NDJSON envelope, and delegation-chain validation.
 - **Talks to**: imported by **Idryx**, **Wardryx**, **Mockryx**, **Qryx**, **heraldyx** and **terraform-provider-taipan**, so all six speak the same identity and event language as **TokenFuse** and **Engram**, which reach it through their own languages.
 
@@ -379,7 +379,9 @@ chain from a reversed one.
   `VerifyChain`, see above). `github.com/santhosh-tekuri/jsonschema/v6` is
   used by `event`'s conformance test and, as a real (non-test) dependency,
   by `cmd/agent-conform` -- a consumer importing only the library packages
-  never pulls in jsonschema; only building the standalone tool does.
+  never pulls in jsonschema; only building the standalone tool does. The same
+  holds for `passport`'s conformance test, which is why
+  `scripts/deps-layering.sh` reads non-test imports only.
 - Each package mirrors an existing internal implementation elsewhere in the
   stack (Idryx's `internal/ingest/passport` and `internal/ingest/tokenfuse`,
   TokenFuse's `tokenfuse-core::agent_event`, Engram's `engram.events`) rather
@@ -391,9 +393,10 @@ chain from a reversed one.
   counted, never fatal to the rest of a batch.
 
 The canonical JSON Schemas live in the `TAIPANBOX/agent-passport` repo.
-`event/testdata/agent-event.v0.2.schema.json` is a local copy used only by
-this module's conformance test, so the Go bindings can never silently drift
-out of lockstep with the schema that defines the wire contract.
+`event/testdata/agent-event.v0.2.schema.json` and
+`passport/testdata/schema/agent-passport.schema.json` are local copies used only by
+those packages' conformance tests, so the Go bindings can never silently drift
+out of lockstep with the schemas that define the wire contract.
 `cmd/agent-conform/schemas/*.json` are separate local copies of all three
 schemas (Passport, event v0.1, event v0.2), embedded into that tool via
 `go:embed` for the same reason.
@@ -424,7 +427,11 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.5.0`), never a local
 - [x] `passport`: `Parse`, `ValidateAgentURI`, `ValidateUserURI`, sentinel errors
 - [x] `event`: `Marshal`, `Unmarshal`, append-only `Writer`, `Scan`/`ReadFile` NDJSON readers, `ChainedWriter`/`VerifyChain` SPEC 6.5 `prev_hash` integrity chain, `Canonicalize`/`ChainHash`
 - [x] `chain`: `Append`, `Validate`, `MaxDepth` = 32, acyclic + root-first
-- [x] conformance test against the canonical `agent-event` v0.2 JSON Schema
+- [x] conformance tests against the canonical JSON Schemas, one per bound type:
+  `event` against `agent-event` v0.2, `passport` against `agent-passport` v0.1,
+  including a both-directions check that the struct's json tags and the schema's
+  properties name the same set (a mistyped tag validates fine, since
+  `additionalProperties` is true, and declares nothing)
 - [x] `passport.LoadDir`: shared batch loader (resolve dir/glob/file, sorted, tolerant, first-seen-id dedup), extracted out of Wardryx's and Idryx's independent copies
 - [x] `v0.5.0` tagged, the first release to publish `agent-conform` as a binary; CI green on `gofmt`, `go vet`, `staticcheck`, `go test -race`, `go build`, `govulncheck`
 - [x] `cmd/agent-conform`: standalone conformance-check CLI, full JSON Schema
