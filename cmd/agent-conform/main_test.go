@@ -423,6 +423,20 @@ func TestChainReportsACyclicDelegationChain(t *testing.T) {
 	}
 }
 
+// TestChainReportsAnOverlongDelegationChain and its cyclic sibling above are
+// deliberately asymmetric now, and the asymmetry is the interesting part.
+//
+// Until 2026-08-06 both halves of SPEC 5.1 were invisible to the schema, so
+// both tests asserted the same thing: -chain catches it, plain validation does
+// not. On that day agent-passport encoded the depth bound as maxItems 32 in
+// both event schemas, which this repo then vendored. Depth is expressible in
+// JSON Schema; acyclicity is not, and the canonical schema says so in its own
+// description rather than pretending otherwise.
+//
+// So an overlong chain is now refused in BOTH modes, and a cyclic one is still
+// refused only by -chain. If a future change makes this test's second
+// assertion fail, the vendored copies have drifted from a canonical schema
+// that dropped the bound, and scripts/schemas-in-sync.sh should be red too.
 func TestChainReportsAnOverlongDelegationChain(t *testing.T) {
 	s := mustLoadSchemas(t)
 	// 33 entries, one past chain.MaxDepth.
@@ -435,8 +449,8 @@ func TestChainReportsAnOverlongDelegationChain(t *testing.T) {
 	if checkFile(s, path, true) {
 		t.Fatal("an on_behalf_of past 32 entries must fail -chain")
 	}
-	if !checkFile(s, path, false) {
-		t.Fatal("without -chain the same stream is schema-valid, which is the whole point")
+	if checkFile(s, path, false) {
+		t.Fatal("the canonical schema bounds on_behalf_of at 32, so plain validation must refuse a 33rd entry too")
 	}
 }
 
