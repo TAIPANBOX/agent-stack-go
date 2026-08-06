@@ -10,9 +10,13 @@ implementations that import it, on real files they produced".
 
 ## Its own test suite
 
-67 tests across `passport`, `event`, `chain` and `cmd/agent-conform`, green on
+85 tests across `passport`, `event`, `chain` and `cmd/agent-conform`, green on
 `go test ./... -count=1`. CI additionally gates on `gofmt`, `go vet`,
-`staticcheck`, `go test -race`, `go build` and `govulncheck`.
+`staticcheck`, `go test -race`, `go build`, `govulncheck`, and on the two
+claims this file used to make in prose: that the vendored schemas still match
+the repository that owns them (`scripts/schemas-in-sync.sh`) and that this
+number is the number (`scripts/readme-numbers.sh`, which reads both this file
+and the README badge, because the count went stale here first).
 
 The one worth naming: a conformance test that validates this module's own types
 against the **canonical `agent-event` JSON Schemas** from the

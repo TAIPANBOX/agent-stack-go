@@ -9,7 +9,7 @@
 ![Go](https://img.shields.io/badge/go-1.26-00ADD8.svg)
 ![tests](https://img.shields.io/badge/tests-85-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
-![Status](https://img.shields.io/badge/status-v0.5.0-success.svg)
+![Status](https://img.shields.io/badge/status-v0.5.1-success.svg)
 
 <img src="docs/architecture.png" alt="agent-stack-go: the passport, event and chain packages compose one shared contract, imported by tag by Idryx, Wardryx, Mockryx, Qryx, heraldyx and terraform-provider-taipan" width="960">
 
@@ -20,7 +20,7 @@ service in the TAIPANBOX agent-governance stack (Wardryx, Mockryx, and
 future siblings) needs to speak the same identity and event language as
 TokenFuse, Idryx, Qryx, and Engram. Idryx's equivalents live under
 `internal/` and cannot be imported outside that repo, which is why this
-module exists: one shared source, not four drifting copies.
+module exists: one shared source, not six drifting copies.
 
 The stack this module supports is a defensive, self-protection system: it
 exists so an organization running AI agents can govern and audit its own
@@ -183,7 +183,7 @@ autonomously.
 ## Install
 
 ```sh
-go get github.com/TAIPANBOX/agent-stack-go@v0.5.0
+go get github.com/TAIPANBOX/agent-stack-go@v0.5.1
 ```
 
 Pin to a tagged release, not to `@latest` and never to a local `replace`
@@ -231,17 +231,20 @@ places: this tool's output is a verdict about *your* system, and a verdict is
 worth what its checker is worth.
 
 ```sh
+# ONE tag on both sides. `agent-conform -version` prints the one you have.
+V=v0.5.0
+
 # ours, unpacked ANYWHERE EXCEPT the checkout (see the warning below)
 mkdir -p /tmp/verify && cd /tmp/verify
-curl -fsSLO https://github.com/TAIPANBOX/agent-stack-go/releases/latest/download/agent-conform_darwin_arm64.tar.gz
+curl -fsSLO https://github.com/TAIPANBOX/agent-stack-go/releases/download/$V/agent-conform_darwin_arm64.tar.gz
 tar -xzf agent-conform_darwin_arm64.tar.gz
 
 # yours, from a clean tree
 cd /path/to/your/agent-stack-go
-git checkout v0.5.0
+git checkout $V
 git status --porcelain      # must print nothing at all
 CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath \
-  -ldflags "-s -w -X main.version=v0.5.0" -o /tmp/verify/mine ./cmd/agent-conform
+  -ldflags "-s -w -X main.version=$V" -o /tmp/verify/mine ./cmd/agent-conform
 
 sha256sum /tmp/verify/mine \
   /tmp/verify/agent-conform_darwin_arm64/agent-conform
@@ -250,8 +253,22 @@ sha256sum /tmp/verify/mine \
 ```
 
 Two identical digests. Measured on 5 August 2026 from a fresh clone against the
-real `v0.5.0` assets, cross-compiled on an Ubuntu runner and rebuilt on macOS:
+real `v0.5.0` assets, cross-compiled on an Ubuntu runner and rebuilt on macOS,
+and rebuilt again on 6 August 2026 with Go 1.26.5 to the same value:
 `fe8ccb5e1606129818981bfd6a7369a5a9dbc640bbec40640762d8d01c888ff5`.
+
+**Both sides name one tag, and that is why `$V` is in the recipe rather than
+`latest`.** The download line used to say `releases/latest/download`, which was
+true for about an hour: v0.5.0 and v0.5.1 were tagged the same day, `latest`
+moved, and the recipe went on telling you to rebuild v0.5.0 and compare it
+against the v0.5.1 archive. Those two binaries differ by construction, since
+`-X main.version` stamps the tag into the bytes, so anybody following it got a
+mismatch and a good reason to think we were lying. `latest` is the right address
+for INSTALLING, where you want whatever is current; it is the wrong one for
+VERIFYING, where the whole job is comparing like with like. The digest above is
+`v0.5.0` because that is the pair that was measured end to end. Set `V` to the
+tag you actually installed and the recipe holds; the number it prints is then
+yours to compare, not one to look up here.
 
 **Build from a clean tree, and do not unpack our archive inside it.** Go stamps
 `vcs.modified` into the binary, and **one untracked file anywhere in the
@@ -338,7 +355,7 @@ func main() {
 ## Command-line tool: `agent-conform`
 
 ```sh
-go install github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform@v0.5.0
+go install github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform@v0.5.1
 agent-conform passport.json events.ndjson
 ```
 
@@ -417,7 +434,7 @@ next divergence is caught by CI rather than by a reader.
 This module follows SemVer, starting at `v0.1.0`. Breaking the wire contract
 (the `passport` or `event` schema) is a spec version bump, never a silent
 change; the Go types version alongside the module itself. Consumers pin it
-by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.5.0`), never a local
+by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.5.1`), never a local
 `replace`.
 
 ---
@@ -433,7 +450,7 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.5.0`), never a local
   properties name the same set (a mistyped tag validates fine, since
   `additionalProperties` is true, and declares nothing)
 - [x] `passport.LoadDir`: shared batch loader (resolve dir/glob/file, sorted, tolerant, first-seen-id dedup), extracted out of Wardryx's and Idryx's independent copies
-- [x] `v0.5.0` tagged, the first release to publish `agent-conform` as a binary; CI green on `gofmt`, `go vet`, `staticcheck`, `go test -race`, `go build`, `govulncheck`
+- [x] `v0.5.0` tagged, the first release to publish `agent-conform` as a binary, then `v0.5.1` the same day, which is what the install lines above pin: it moved the version out of the release asset names and into the binary, so `releases/latest/download/<name>` is a permanent address; CI green on `gofmt`, `go vet`, `staticcheck`, `go test -race`, `go build`, `govulncheck`
 - [x] `cmd/agent-conform`: standalone conformance-check CLI, full JSON Schema
   validation (Passport documents + event v0.1/v0.2) against embedded copies
   of the canonical schemas; live-verified against real fixtures elsewhere

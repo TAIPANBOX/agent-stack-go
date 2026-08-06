@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Enforces invariant 1 of CLAUDE.md: the importable library packages stay
-# dependency-clean, because anything added here lands in four consumers at once.
+# dependency-clean, because anything added here lands in six consumers at once.
 #
 #   passport, chain -> standard library only
 #   event           -> standard library plus github.com/gowebpki/jcs (RFC 8785,
@@ -63,7 +63,8 @@ check_pkg event github.com/gowebpki/jcs
 if [ "$fail" -ne 0 ]; then
 	echo
 	echo "Library layering violated. This check exists because agent-stack-go is"
-	echo "imported by tag by idryx, wardryx, mockryx and terraform-provider-taipan."
+	echo "imported by tag by idryx, wardryx, mockryx, qryx, heraldyx and"
+	echo "terraform-provider-taipan. See the table in CLAUDE.md, which is measured."
 	exit 1
 fi
 
