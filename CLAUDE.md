@@ -27,8 +27,8 @@ envelope, the delegation chain, and the `prev_hash` integrity chain, so every Go
 service in the stack speaks one wire language.
 
 It exists because Idryx's equivalents live under `internal/` and cannot be
-imported. Without this module the stack would carry four drifting copies of the
-same types. **Preventing that drift is the entire point of the repo**, and it is
+imported. Without this module the stack would carry six drifting copies of the
+same types, one per importer in the table below. **Preventing that drift is the entire point of the repo**, and it is
 the lens for every change here.
 
 The stack this module serves is defensive: it exists so an organization can
@@ -37,10 +37,28 @@ commit messages, as tooling for acting against anyone else.
 
 ## Blast radius, read this before calling a change routine
 
-This module is imported **by tag** by at least four repos: `idryx`, `wardryx`,
-`mockryx`, `terraform-provider-taipan`. A change to an exported type, an error
-value, or a hashing rule is a change to all of them at once, and consumers pin
-by tag specifically so they do not get it by surprise.
+This module is imported **by tag** by six repos. Measured on 2026-08-06 by
+reading the `go.mod` of every repository beside this one, rather than by
+counting from memory, which is how this list lost two of them:
+
+| Repo | Pins |
+|---|---|
+| `idryx` | `v0.5.1` |
+| `wardryx` | `v0.4.0` |
+| `mockryx` | `v0.4.0` |
+| `qryx` | `v0.4.0` |
+| `heraldyx` | `v0.4.0` |
+| `terraform-provider-taipan` | `v0.1.0` |
+
+A change to an exported type, an error value, or a hashing rule is a change to
+all six, and consumers pin by tag specifically so they do not get it by
+surprise. Note what the right-hand column actually says: they are spread across
+four different tags, so "everyone gets it at once" is false in timing and true
+in obligation. The one that has to keep working is the oldest, `v0.1.0`, not
+the newest.
+
+Keep this table beside the README's importer list and the `docs/architecture`
+diagram: three places name these repos, and on 2026-08-05 all three disagreed.
 
 Consequence: there is no such thing as a small change to a public signature in
 this repo. Either it is additive and backward compatible, or it is a version
@@ -70,7 +88,16 @@ staticcheck ./...
 go test -race ./...
 go build ./...
 ./scripts/deps-layering.sh
+./scripts/schemas-in-sync.sh   # needs TAIPANBOX/agent-passport checked out beside this repo
+./scripts/readme-numbers.sh
+./scripts/reproducible-build.sh
 ```
+
+The last two were CI-only until 2026-08-06 and were missing from this list,
+which meant "run every gate below" was a smaller instruction than CI's. All six
+run locally and all six run in CI. Note that `reproducible-build.sh` builds from
+`git archive HEAD`, so it judges the last commit and not the working tree: run
+it after committing, or it will tell you about code you have already changed.
 
 `make lint` runs gofmt plus vet plus staticcheck. Note that `make staticcheck`
 **skips silently** when staticcheck is not installed, so a green `make lint` on
@@ -92,7 +119,7 @@ had one, is worse than an absent invariant.
    `github.com/gowebpki/jcs`, and it is there because RFC 8785 canonicalization
    is required by SPEC 6.5. `github.com/santhosh-tekuri/jsonschema/v6` is for
    `cmd/agent-conform` and tests only and must never appear in a library
-   package. A dependency added here lands in four consumers at once.
+   package. A dependency added here lands in six consumers at once.
    *(gate: `scripts/deps-layering.sh`)*
 2. **A change to an exported type, constant, or error value is a version
    decision, not an edit.** Consumers pin by tag. Additive and backward
@@ -108,7 +135,12 @@ had one, is worse than an absent invariant.
    `MaxDepth` (32) entries, every entry an `agent://` or `user://` URI, and an
    empty chain is valid and means the agent acts autonomously. A service
    appends exactly one entry, its own principal, and rejects a chain already
-   containing it. *(test: `TestAppend`, `TestAppendCycle`)*
+   containing it. Root-first ordering is a property of how a chain was BUILT
+   and cannot be verified from the finished list, so nothing here may claim to
+   check it. *(test: `TestAppend`, `TestAppendCycle`, and from the CLI side
+   `TestChainReportsACyclicDelegationChain`,
+   `TestChainReportsAnOverlongDelegationChain`,
+   `TestChainReportsTheTwoFailureKindsDistinctly`)*
 6. **`prev_hash` is computed over RFC 8785 canonical JSON with the `prev_hash`
    field removed by construction, never by string surgery**, and always
    carries the `sha256:` prefix. Removing the field textually is the bug this
@@ -174,6 +206,39 @@ had one, is worse than an absent invariant.
     finds no asset name at all, because a check that goes green once its subject
     has vanished is worse than no check. Verified by breaking: putting the version
     back fails it in all four repositories that share this shape.)*
+
+13. **Every vendored schema is byte-identical to the copy agent-passport
+    owns.** This module does not define the wire contract, it implements one,
+    and the schemas under `cmd/agent-conform/schemas/` and in the packages'
+    `testdata/` are copies, vendored so the tool is one static binary and the
+    tests run offline. Copies drift; preventing exactly that is why this repo
+    exists, so a copy of somebody else's file with nothing comparing the two is
+    this repo's own failure mode one level down.
+    *(gate: `scripts/schemas-in-sync.sh`, which compares every tracked file
+    named like a canonical schema against `../agent-passport/schemas/`, byte
+    for byte. Copies are discovered rather than listed, so a new one is covered
+    the day it is committed. It refuses when the sibling is absent, when it
+    found nothing to compare, and when this repo holds a schema-shaped file
+    agent-passport does not own. Verified by breaking, three ways: a drifted
+    copy, a missing sibling, and a canonical set sharing no names with ours,
+    each of which fails it. CI checks the sibling out beside this repo in the
+    `schemas` job.)*
+
+    Added 2026-08-05, after the vendored Passport schema was found to be 69
+    lines against the canonical 114: the whole `filesystem` (SPEC 4.4) and
+    `models` (SPEC 4.5) declarations were missing. The way it failed is the
+    part worth keeping. A Passport allows `additionalProperties`, so a property
+    the schema does not DECLARE is not checked loosely, it is not looked at at
+    all: `agent-conform` read `"mode": "delete"`, a mode SPEC 4.4 does not
+    have, and printed `OK` under what the README calls full schema validation.
+    A silent pass on a field nobody validates is worse than a missing check,
+    because it is indistinguishable from a real one.
+
+    The canonical is read from its default branch, unpinned. A change over
+    there turns this red with no change here, and that is the signal rather
+    than the bug. A recorded digest was the alternative and was rejected: it
+    holds our own side of the agreement only, which is the shape invariant 11
+    exists to name.
 
 ## Decisions that have no gate yet
 

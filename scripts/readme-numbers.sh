@@ -28,11 +28,19 @@
 # not about it passing: `go test -race ./...` in CI is what says they pass, and
 # conflating the two would let a green badge mean a red suite.
 
+#
+# TWO FILES STATE IT, SO TWO FILES ARE CHECKED. The badge in README.md was
+# gated from the day this script was written and VALIDATION.md was not, so on
+# 2026-08-06 the badge was right and VALIDATION.md's opening line still said 67
+# against a suite of 85. A gate on one of two copies of a number is how the
+# other copy becomes the stale one: nobody looks at the file that has no check.
+
 set -uo pipefail
 
 cd "$(git rev-parse --show-toplevel)" || exit 1
 
 readme="README.md"
+validation="VALIDATION.md"
 problems=0
 
 note() {
@@ -56,12 +64,26 @@ fi
 [ "$stated" = "$actual" ] ||
 	note "the badge says $stated test functions and \`go test -list\` counts $actual"
 
+# VALIDATION.md opens with the same number in prose: "N tests across ...".
+if [ ! -f "$validation" ]; then
+	note "$validation is missing, and this check was written because it carries the same number as the badge"
+else
+	claimed=$(grep -oE '^[0-9]+ tests across' "$validation" | grep -oE '^[0-9]+' | head -1)
+	if [ -z "$claimed" ]; then
+		note "$validation no longer opens with an \"N tests across ...\" line, so this half of the check measured nothing"
+		note "either restore the sentence or delete this half deliberately, but do not let it pass by looking at nothing"
+	else
+		[ "$claimed" = "$actual" ] ||
+			note "$validation says $claimed test functions and \`go test -list\` counts $actual"
+	fi
+fi
+
 if [ "$problems" -gt 0 ]; then
-	printf '\n%d number(s) the README states that this repository does not support.\n' "$problems"
-	printf 'Update the badge in the same commit as the tests. That is the whole point:\n'
-	printf 'the suite changes in a commit that never opens the README, and this is what\n'
-	printf 'makes that impossible.\n'
+	printf '\n%d number(s) this repository states about itself that it does not support.\n' "$problems"
+	printf 'Update them in the same commit as the tests. That is the whole point: the\n'
+	printf 'suite changes in a commit that never opens README.md or VALIDATION.md, and\n'
+	printf 'this is what makes that impossible.\n'
 	exit 1
 fi
 
-printf '%s test functions, and the badge says so.\n' "$actual"
+printf '%s test functions, and both the badge and %s say so.\n' "$actual" "$validation"

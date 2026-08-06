@@ -42,11 +42,12 @@
     },
     "on_behalf_of": {
       "type": "array",
-      "description": "Delegation chain, root first. See SPEC.md §5.",
+      "description": "Delegation chain, root first. See SPEC.md §5. Maximum depth is 32 entries (SPEC.md §5.1). The acyclicity requirement in the same subsection is NOT expressible in JSON Schema and remains a producer obligation checked at append time.",
       "items": {
         "type": "string",
         "pattern": "^(agent|user)://"
-      }
+      },
+      "maxItems": 32
     },
     "data": {
       "type": "object",
