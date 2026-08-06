@@ -8,6 +8,14 @@
 *.out
 coverage.*
 
+# The local build of the checker. `go build -o agent-conform ./cmd/agent-conform`
+# is the obvious thing to type, and it lands at the root, which /bin/ and /dist/
+# do not cover. It has to be ignored rather than merely untracked: Go stamps
+# vcs.modified into the binary, ONE untracked file in the checkout flips it to
+# true, and that changes the bytes of every later build. The reproducibility
+# recipe in the README depends on `git status --porcelain` printing nothing.
+/agent-conform
+
 # Editor
 .idea/
 .vscode/
