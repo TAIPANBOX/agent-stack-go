@@ -91,11 +91,15 @@ go build ./...
 ./scripts/schemas-in-sync.sh   # needs TAIPANBOX/agent-passport checked out beside this repo
 ./scripts/readme-numbers.sh
 ./scripts/reproducible-build.sh
+./scripts/gates-have-teeth.sh   # invariant 14; needs a clean tree, run it after committing
 ```
 
-The last two were CI-only until 2026-08-06 and were missing from this list,
-which meant "run every gate below" was a smaller instruction than CI's. All six
-run locally and all six run in CI. Note that `reproducible-build.sh` builds from
+`readme-numbers.sh` and `reproducible-build.sh` were CI-only until 2026-08-06
+and were missing from this list, which meant "run every gate below" was a
+smaller instruction than CI's. Every script named above runs locally and in CI.
+(The sentence here used to count them, and the count went stale the moment the
+list grew. A number in prose beside the thing it counts is invariant 12's shape
+one file in.) Note that `reproducible-build.sh` builds from
 `git archive HEAD`, so it judges the last commit and not the working tree: run
 it after committing, or it will tell you about code you have already changed.
 
@@ -239,6 +243,36 @@ had one, is worse than an absent invariant.
     than the bug. A recorded digest was the alternative and was rejected: it
     holds our own side of the agreement only, which is the shape invariant 11
     exists to name.
+
+14. **A check must be able to tell "did not fail" from "did not run", and every
+    gate here has been made to fail on purpose to prove it can.** Three of the
+    four gates above already refuse when their subject is absent, and
+    invariants 11, 12 and 13 each say so in a sentence. Those sentences were
+    true. Every one of them was established by hand, once, in the session that
+    wrote the script, and nothing re-ran them.
+
+    That is the shape this invariant is about rather than any one gate. A text
+    parser does not break loudly: it stops matching and reports success. The
+    mutants that proved these gates lived in commit messages and in the
+    `*(gate: ...)*` markers above, which is a record of what was true once.
+
+    Across idryx and tokenfuse on 2026-08-09 the same harness caught five
+    mutations that changed no bytes, and three of the five had been verified by
+    hand against the same gate minutes earlier. The hand version and the
+    harness version differ only in how many layers of quoting sit between the
+    text and python. So every mutation asserts it applied: a case whose edit
+    changed nothing is a failure, not a pass.
+    *(gate: `scripts/gates-have-teeth.sh`, 11 cases: five real faults each gate
+    must catch, two non-faults they must not, and four subjects taken away
+    entirely, where the gate must say it measured nothing rather than report
+    OK. It runs in the `schemas` CI job rather than `build`, because one of the
+    four gates needs the sibling repository checked out beside this one, and in
+    `build` that case would fail for the wrong reason.)*
+
+    **What it does not cover.** It cannot test itself; nothing watches this one
+    fail. It proves each gate catches the faults named in it, not every fault
+    of that kind. And it found no hole in any of the four, which is the result
+    to expect from a ratchet on the day it is installed.
 
 ## Decisions that have no gate yet
 
