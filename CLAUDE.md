@@ -37,28 +37,33 @@ commit messages, as tooling for acting against anyone else.
 
 ## Blast radius, read this before calling a change routine
 
-This module is imported **by tag** by six repos. Measured on 2026-08-06 by
-reading the `go.mod` of every repository beside this one, rather than by
-counting from memory, which is how this list lost two of them:
-
-| Repo | Pins |
-|---|---|
-| `idryx` | `v0.5.1` |
-| `wardryx` | `v0.4.0` |
-| `mockryx` | `v0.4.0` |
-| `qryx` | `v0.4.0` |
-| `heraldyx` | `v0.4.0` |
-| `terraform-provider-taipan` | `v0.1.0` |
+This module is imported **by tag** by six repos: `idryx`, `wardryx`, `mockryx`,
+`qryx`, `heraldyx` and `terraform-provider-taipan`.
 
 A change to an exported type, an error value, or a hashing rule is a change to
 all six, and consumers pin by tag specifically so they do not get it by
-surprise. Note what the right-hand column actually says: they are spread across
-four different tags, so "everyone gets it at once" is false in timing and true
-in obligation. The one that has to keep working is the oldest, `v0.1.0`, not
-the newest.
+surprise. **They do not move together**, so "everyone gets it at once" is false
+in timing and true in obligation, and the tag that has to keep working is the
+oldest anybody is still on rather than the newest one cut.
 
-Keep this table beside the README's importer list and the `docs/architecture`
-diagram: three places name these repos, and on 2026-08-05 all three disagreed.
+**Which tag each is on is not written here, and that is the change.** This
+section carried a table of it until 2026-08-09, measured by hand on 2026-08-06.
+By the time it was removed every one of its six rows was wrong: five went stale
+the day the consumers moved to `v0.6.0`, and the sixth had been wrong since some
+earlier bump with nothing to notice, because a figure kept by hand in a file
+that says it holds no status has no owner and no clock.
+
+The owner is `estate-gates` C1, which reads the `go.mod` of every consumer and
+refuses when one falls a minor behind:
+
+```sh
+cd ../estate-gates && ./run-gates.py --mode ref --ref origin/main
+```
+
+What stays here is the part that does not rot: the six NAMES, which the
+README's importer list and the `docs/architecture` diagram also carry. Three
+places name these repos, all three disagreed on 2026-08-05, and keeping them in
+step is still somebody's job. Versions are not, any more.
 
 Consequence: there is no such thing as a small change to a public signature in
 this repo. Either it is additive and backward compatible, or it is a version

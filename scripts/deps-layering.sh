@@ -64,7 +64,8 @@ if [ "$fail" -ne 0 ]; then
 	echo
 	echo "Library layering violated. This check exists because agent-stack-go is"
 	echo "imported by tag by idryx, wardryx, mockryx, qryx, heraldyx and"
-	echo "terraform-provider-taipan. See the table in CLAUDE.md, which is measured."
+	echo "terraform-provider-taipan. See CLAUDE.md's blast-radius section; which"
+	echo "tag each of them is on is measured by estate-gates C1, not written down."
 	exit 1
 fi
 
