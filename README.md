@@ -9,7 +9,7 @@
 ![Go](https://img.shields.io/badge/go-1.26-00ADD8.svg)
 ![tests](https://img.shields.io/badge/tests-85-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
-![Status](https://img.shields.io/badge/status-v0.5.1-success.svg)
+![Status](https://img.shields.io/badge/status-v0.6.0-success.svg)
 
 <img src="docs/architecture.png" alt="agent-stack-go: the passport, event and chain packages compose one shared contract, imported by tag by Idryx, Wardryx, Mockryx, Qryx, heraldyx and terraform-provider-taipan" width="960">
 
@@ -183,7 +183,7 @@ autonomously.
 ## Install
 
 ```sh
-go get github.com/TAIPANBOX/agent-stack-go@v0.5.1
+go get github.com/TAIPANBOX/agent-stack-go@v0.6.0
 ```
 
 Pin to a tagged release, not to `@latest` and never to a local `replace`
@@ -355,7 +355,7 @@ func main() {
 ## Command-line tool: `agent-conform`
 
 ```sh
-go install github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform@v0.5.1
+go install github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform@v0.6.0
 agent-conform passport.json events.ndjson
 ```
 
@@ -434,7 +434,7 @@ next divergence is caught by CI rather than by a reader.
 This module follows SemVer, starting at `v0.1.0`. Breaking the wire contract
 (the `passport` or `event` schema) is a spec version bump, never a silent
 change; the Go types version alongside the module itself. Consumers pin it
-by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.5.1`), never a local
+by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.6.0`), never a local
 `replace`.
 
 ---
@@ -450,7 +450,17 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.5.1`), never a local
   properties name the same set (a mistyped tag validates fine, since
   `additionalProperties` is true, and declares nothing)
 - [x] `passport.LoadDir`: shared batch loader (resolve dir/glob/file, sorted, tolerant, first-seen-id dedup), extracted out of Wardryx's and Idryx's independent copies
-- [x] `v0.5.0` tagged, the first release to publish `agent-conform` as a binary, then `v0.5.1` the same day, which is what the install lines above pin: it moved the version out of the release asset names and into the binary, so `releases/latest/download/<name>` is a permanent address; CI green on `gofmt`, `go vet`, `staticcheck`, `go test -race`, `go build`, `govulncheck`
+- [x] `v0.5.0` tagged, the first release to publish `agent-conform` as a binary, then `v0.5.1` the same day: it moved the version out of the release asset names and into the binary, so `releases/latest/download/<name>` is a permanent address; CI green on `gofmt`, `go vet`, `staticcheck`, `go test -race`, `go build`, `govulncheck`
+- [x] `v0.6.0` tagged, which is what the install lines above pin. The library
+  packages are byte-identical to `v0.5.1`, so an importer gets no behaviour
+  change; the checker does. `-chain` said it checked delegation chains and
+  never looked, the vendored Passport schema had stopped being the Passport
+  schema, and the event schemas gained SPEC 5.1's depth bound, so a stream with
+  a chain over 32 entries now fails where it used to pass. That is a minor
+  rather than a patch for exactly that reason. It also drops a
+  `darwin/arm64` build of `agent-conform` that had been committed at the module
+  root and shipped inside the `v0.5.1` module zip, against this repository's
+  own `.gitignore`
 - [x] `cmd/agent-conform`: standalone conformance-check CLI, full JSON Schema
   validation (Passport documents + event v0.1/v0.2) against embedded copies
   of the canonical schemas; live-verified against real fixtures elsewhere
