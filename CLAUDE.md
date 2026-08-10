@@ -37,8 +37,18 @@ commit messages, as tooling for acting against anyone else.
 
 ## Blast radius, read this before calling a change routine
 
-This module is imported **by tag** by six repos: `idryx`, `wardryx`, `mockryx`,
-`qryx`, `heraldyx` and `terraform-provider-taipan`.
+This module is imported **by tag** by seven repos: `idryx`, `wardryx`,
+`mockryx`, `qryx`, `heraldyx`, `scopyx` and `terraform-provider-taipan`.
+
+It said six until 2026-08-10, and the seventh had been importing it for a
+while. scopyx joined the estate on 2026-08-09 and this paragraph, the README's
+sentence and the architecture diagram's alt text all went on naming six, which
+is the same shape the section below already describes about the version table:
+a list kept by hand in a file that holds no status has no owner and no clock.
+
+The count is not the fix, and writing it here again would repeat the mistake.
+What found it is `estate-gates` C1, which reads every consumer's `go.mod` and
+names each one it refuses. Run that rather than trusting this sentence.
 
 A change to an exported type, an error value, or a hashing rule is a change to
 all six, and consumers pin by tag specifically so they do not get it by
