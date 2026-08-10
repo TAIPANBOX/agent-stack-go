@@ -261,3 +261,64 @@ func TestValidateAgentURILength(t *testing.T) {
 		t.Errorf("ValidateAgentURI(%d bytes) = nil, want an error", maxURIBytes+1)
 	}
 }
+
+// A claimed subject is a subject, and it is not an agent URI. Those two
+// sentences are the whole of why ValidateSubject and ValidateAgentURI are two
+// functions rather than one with a flag.
+//
+// agent-passport SPEC 3.3: the value is a self-declaration, and it must never
+// satisfy a control requiring an attested identity. A single permissive
+// validator would be reached by an authorization path one refactor later, and
+// nothing in its name would warn the person doing the refactor.
+func TestAClaimedSubjectIsASubjectAndIsNotAnAgentURI(t *testing.T) {
+	const claimed = "claimed:agent://acme.example/support/tier1-bot"
+
+	if err := ValidateSubject(claimed); err != nil {
+		t.Errorf("ValidateSubject(%q) = %v, want nil: it is a well-formed subject", claimed, err)
+	}
+	if err := ValidateAgentURI(claimed); err == nil {
+		t.Errorf("ValidateAgentURI(%q) accepted a claim; an authorization path calling "+
+			"this must never be handed a self-declaration", claimed)
+	}
+	if !IsClaimedSubject(claimed) {
+		t.Errorf("IsClaimedSubject(%q) = false", claimed)
+	}
+	if IsClaimedSubject("agent://acme.example/support/tier1-bot") {
+		t.Error("IsClaimedSubject said true about an established identity")
+	}
+}
+
+// The marker qualifies an agent URI; it does not make a bad one good. A value
+// that would not be a valid identity is not rescued by being claimed.
+func TestTheMarkerDoesNotRescueAMalformedIdentity(t *testing.T) {
+	for _, s := range []string{
+		"claimed:not-a-uri",
+		"claimed:agent://",
+		"claimed:",
+		"claimed:agent://ACME.example/bot", // the domain is lowercase or it is nothing
+	} {
+		if err := ValidateSubject(s); err == nil {
+			t.Errorf("ValidateSubject(%q) = nil, want an error: the inner id keeps SPEC 3.1's grammar", s)
+		}
+	}
+}
+
+// ClaimedInner hands back the identity the process asserted, and says that it
+// was asserted. Both halves matter: a caller that gets the string without the
+// second return value has no way to know what it is holding.
+func TestClaimedInnerReturnsTheAssertedIdentityAndSaysItWasAsserted(t *testing.T) {
+	inner, ok := ClaimedInner("claimed:agent://acme.example/planner")
+	if !ok {
+		t.Fatal("ClaimedInner reported an established identity for a claimed one")
+	}
+	if inner != "agent://acme.example/planner" {
+		t.Errorf("inner = %q, want the id with the marker removed and nothing else", inner)
+	}
+	if err := ValidateAgentURI(inner); err != nil {
+		t.Errorf("the inner id must be a well-formed agent URI, got %v", err)
+	}
+
+	if _, ok := ClaimedInner("agent://acme.example/planner"); ok {
+		t.Error("ClaimedInner said an established identity was claimed")
+	}
+}

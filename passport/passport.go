@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 // RequiredSchema is the only Passport schema version this package
@@ -109,6 +110,54 @@ func ValidateAgentURI(s string) error {
 // the human subject, max 255 bytes total.
 func ValidateUserURI(s string) error {
 	return validateURI(s, userURIPattern)
+}
+
+// ClaimedPrefix marks a subject a PROCESS asserted about itself, read out of
+// its own AGENT_PASSPORT_ID environment variable (agent-passport SPEC 3.3).
+//
+// It lives here because this package owns the identifier grammar, and a second
+// copy of the string in each consumer is the drift every repository in this
+// estate has an invariant against. idryx has carried this exact convention
+// on-host since the sensor was written; SPEC 3.3 made it the wire form too, so
+// the sensor's own graph string now travels unchanged instead of being
+// translated at the boundary.
+const ClaimedPrefix = "claimed:"
+
+// IsClaimedSubject reports whether s is a claimed subject rather than an
+// established one.
+//
+// It is a prefix test and nothing more, on purpose. Deciding what a claim MEANS
+// belongs to the consumer: SPEC 3.3 says only that it must never satisfy a
+// control requiring an attested identity, and this package does not know which
+// controls a caller has.
+func IsClaimedSubject(s string) bool {
+	return strings.HasPrefix(s, ClaimedPrefix)
+}
+
+// ValidateSubject reports whether s is a well-formed envelope subject: either
+// an established agent:// URI, or a claimed one under the `claimed:` marker.
+//
+// This is what an agent-event consumer wants, and ValidateAgentURI is what an
+// AUTHORIZATION path wants. Keeping them apart is deliberate: a caller deciding
+// whether an identity may do something must never be handed a function that
+// accepts a self-declaration, and the way to make that hard is to give the two
+// questions two names.
+func ValidateSubject(s string) error {
+	if inner, ok := strings.CutPrefix(s, ClaimedPrefix); ok {
+		return ValidateAgentURI(inner)
+	}
+	return ValidateAgentURI(s)
+}
+
+// ClaimedInner returns the agent:// URI inside a claimed subject, and reports
+// whether s was claimed at all.
+//
+// The identity it returns is one a PROCESS asserted about itself. A caller that
+// strips the marker takes on the obligation the marker carried, and SPEC 3.3 is
+// explicit that the result must not satisfy a control requiring an attested
+// identity. Use it to compare a claim against an inventory, never to act on it.
+func ClaimedInner(s string) (string, bool) {
+	return strings.CutPrefix(s, ClaimedPrefix)
 }
 
 func validateURI(s string, pattern *regexp.Regexp) error {

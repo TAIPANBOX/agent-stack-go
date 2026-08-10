@@ -43,7 +43,7 @@ func realSHA256(s string) string {
 
 func TestLoadSchemasCompiles(t *testing.T) {
 	s := mustLoadSchemas(t)
-	if s.passport == nil || s.eventV01 == nil || s.eventV02 == nil {
+	if s.passport == nil || s.eventV01 == nil || s.eventV02 == nil || s.eventV03 == nil {
 		t.Fatalf("loadSchemas returned a nil schema: %+v", s)
 	}
 }
@@ -169,6 +169,44 @@ func TestCheckFileValidEventStreamV02(t *testing.T) {
 	path := writeFile(t, "e.ndjson", validEventLine("taipanbox.dev/agent-event/v0.2")+"\n")
 	if !checkFile(s, path, false) {
 		t.Error("expected a valid v0.2 event line to conform")
+	}
+}
+
+// Invariant 9, third version. v0.3 exists so an observer can report a subject a
+// PROCESS asserted about itself (SPEC 3.3), and this tool is a conformance
+// checker rather than a consumer: it validates the line and does not judge what
+// a claim means. A consumer MAY refuse v0.3; refusing HERE would make an honest
+// journal fail its whole file under invariant 10.
+func TestCheckFileValidEventStreamV03(t *testing.T) {
+	s := mustLoadSchemas(t)
+	path := writeFile(t, "e.ndjson", validEventLine("taipanbox.dev/agent-event/v0.3")+"\n")
+	if !checkFile(s, path, false) {
+		t.Error("expected a valid v0.3 event line to conform")
+	}
+}
+
+// The subject form v0.3 exists for, end to end through the real schema. A
+// claimed subject is longer than an established one by the eight bytes of the
+// marker, which is why v0.3 raises maxLength as well as widening the pattern:
+// getting one without the other would refuse the longest real identities.
+func TestCheckFileClaimedSubjectConformsOnlyUnderV03(t *testing.T) {
+	s := mustLoadSchemas(t)
+	claimed := `{"schema":"%s","ts":"2026-07-13T00:00:00.000Z","source":"idryx",` +
+		`"type":"identity_finding","agent_id":"claimed:agent://acme.example/support/tier1-bot",` +
+		`"severity":"high","data":{"detector":"unrouted_egress"}}`
+
+	ok := writeFile(t, "claimed-v03.ndjson", fmt.Sprintf(claimed, "taipanbox.dev/agent-event/v0.3")+"\n")
+	if !checkFile(s, ok, false) {
+		t.Error("a claimed subject must conform under v0.3, which is the version that exists for it")
+	}
+
+	// And it must NOT pass as v0.2. The version stamp is how a reader knows a
+	// claim is possible at all, so a producer that stamped the old version
+	// would hand every consumer a self-declaration under the contract that
+	// says this field holds an established identity.
+	bad := writeFile(t, "claimed-v02.ndjson", fmt.Sprintf(claimed, "taipanbox.dev/agent-event/v0.2")+"\n")
+	if checkFile(s, bad, false) {
+		t.Error("a claimed subject stamped v0.2 conformed; v0.2's agent_id is an established identity and nothing else")
 	}
 }
 

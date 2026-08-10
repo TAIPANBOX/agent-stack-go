@@ -84,6 +84,7 @@ const (
 	schemaPassport = "https://taipanbox.dev/agent-passport/v0.1/agent-passport.schema.json" // #nosec G101 -- a public schema $id URL, not a credential
 	schemaEventV01 = "https://taipanbox.dev/agent-passport/v0.1/agent-event.schema.json"    // #nosec G101 -- a public schema $id URL, not a credential
 	schemaEventV02 = "https://taipanbox.dev/agent-passport/v0.2/agent-event.schema.json"    // #nosec G101 -- a public schema $id URL, not a credential
+	schemaEventV03 = "https://taipanbox.dev/agent-passport/v0.3/agent-event.schema.json"    // #nosec G101 -- a public schema $id URL, not a credential
 )
 
 // version is stamped at link time by the release workflow
@@ -147,12 +148,13 @@ parsed:
 	}
 }
 
-// compiledSchemas holds the three schemas this program validates against,
-// compiled once at startup and reused for every file/line.
+// compiledSchemas holds the schemas this program validates against, compiled
+// once at startup and reused for every file/line.
 type compiledSchemas struct {
 	passport *jsonschema.Schema
 	eventV01 *jsonschema.Schema
 	eventV02 *jsonschema.Schema
+	eventV03 *jsonschema.Schema
 }
 
 // loadSchemas compiles the embedded schema files. A compile failure here
@@ -170,6 +172,9 @@ func loadSchemas() (*compiledSchemas, error) {
 	if err := addEmbedded(c, "schemas/agent-event.v0.2.schema.json", schemaEventV02); err != nil {
 		return nil, err
 	}
+	if err := addEmbedded(c, "schemas/agent-event.v0.3.schema.json", schemaEventV03); err != nil {
+		return nil, err
+	}
 
 	passport, err := c.Compile(schemaPassport)
 	if err != nil {
@@ -183,7 +188,11 @@ func loadSchemas() (*compiledSchemas, error) {
 	if err != nil {
 		return nil, fmt.Errorf("compile %s: %w", schemaEventV02, err)
 	}
-	return &compiledSchemas{passport: passport, eventV01: eventV01, eventV02: eventV02}, nil
+	eventV03, err := c.Compile(schemaEventV03)
+	if err != nil {
+		return nil, fmt.Errorf("compile %s: %w", schemaEventV03, err)
+	}
+	return &compiledSchemas{passport: passport, eventV01: eventV01, eventV02: eventV02, eventV03: eventV03}, nil
 }
 
 // addEmbedded reads embeddedPath from the embedded filesystem and
@@ -387,8 +396,16 @@ func checkEventStream(schemas *compiledSchemas, raw []byte, path string) bool {
 			if !checkRecord(schemas.eventV02, line, label+" (event v0.2)") {
 				allOK = false
 			}
+		case "taipanbox.dev/agent-event/v0.3":
+			// v0.3 is the version an observer stamps when agent_id carries a
+			// CLAIMED subject (SPEC 3.3, 6.4). A consumer MAY refuse it; this
+			// tool is a conformance checker rather than a consumer, so it
+			// validates the line instead of judging what a claim means.
+			if !checkRecord(schemas.eventV03, line, label+" (event v0.3)") {
+				allOK = false
+			}
 		default:
-			fmt.Printf("FAIL %s: unrecognized schema %q (want a Passport document or an agent-event v0.1/v0.2 line)\n", label, doc.Schema)
+			fmt.Printf("FAIL %s: unrecognized schema %q (want a Passport document or an agent-event v0.1/v0.2/v0.3 line)\n", label, doc.Schema)
 			allOK = false
 		}
 	}
