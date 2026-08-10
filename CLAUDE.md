@@ -164,10 +164,20 @@ had one, is worse than an absent invariant.
    truncation, or a reordered shipment stops passing silently. Never let a
    README, doc comment, or commit message imply more than that.
    *(not enforced)*
-9. **Both event schema versions keep passing.** `v0.1` and `v0.2` streams are
-   both valid input; dropping support for the older one is a breaking change
-   under invariant 2. *(test: `TestCheckFileValidEventStreamV01`,
-   `TestCheckFileValidEventStreamV02`)*
+9. **Every event schema version keeps passing.** `v0.1`, `v0.2` and `v0.3`
+   streams are all valid input to this tool; dropping support for an older one
+   is a breaking change under invariant 2.
+
+   **`agent-conform` accepts v0.3 and a CONSUMER may refuse it, and the two are
+   not in tension.** v0.3 is the version an observer stamps when `agent_id`
+   carries a claimed subject (SPEC 3.3, 6.4), and a consumer that has not
+   decided what a self-declaration means to it is right to refuse. This tool is
+   a conformance checker rather than a consumer: refusing here would make an
+   honest journal fail its whole file under invariant 10, which would say the
+   producer broke the contract when it did not.
+   *(test: `TestCheckFileValidEventStreamV01`,
+   `TestCheckFileValidEventStreamV02`, `TestCheckFileValidEventStreamV03`,
+   `TestCheckFileClaimedSubjectConformsOnlyUnderV03`)*
 10. **One bad line fails the whole file.** `agent-conform` does not partially
     accept a stream. Blank lines are skipped and are not content.
     *(test: `TestCheckFileEventOneBadLineFailsWholeFile`,

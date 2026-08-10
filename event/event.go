@@ -24,14 +24,28 @@ import (
 
 // Schema identifiers this package understands.
 //
-// SchemaV02 is the current wire version: the open source registry and the
-// delegation-chain cycle rule (see package chain) were both introduced in
+// SchemaV02 is the version for ordinary traffic: the open source registry and
+// the delegation-chain cycle rule (see package chain) were both introduced in
 // v0.2. SchemaV01 remains valid per the compatibility rule: consumers MUST
 // accept either schema string; a producer emitting v0.1 is not required to
 // upgrade before a consumer can read it.
+//
+// SchemaV03 is NOT the successor to v0.2 in the usual sense, and treating it as
+// one is the mistake this comment exists to prevent. It is the version an
+// observer stamps when, and only when, `agent_id` carries a CLAIMED subject:
+// `claimed:agent://<domain>/<path>`, read out of a process's own
+// AGENT_PASSPORT_ID (agent-passport SPEC 3.3, 6.4). A producer MUST NOT stamp
+// it on an event whose subject is established, because the version is how a
+// reader knows a claim is possible at all.
+//
+// The asymmetry that follows from that: a consumer MUST accept v0.1 and v0.2,
+// and MAY refuse v0.3. Refusing is the correct answer for a reader that has not
+// decided what a self-declaration means to it, and this package deliberately
+// does not decide that for anybody (see Unmarshal).
 const (
 	SchemaV02 = "taipanbox.dev/agent-event/v0.2"
 	SchemaV01 = "taipanbox.dev/agent-event/v0.1"
+	SchemaV03 = "taipanbox.dev/agent-event/v0.3"
 )
 
 // Severity values for the Event.Severity field.
