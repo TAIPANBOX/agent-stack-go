@@ -83,7 +83,7 @@
           "provider": {
             "type": "string",
             "minLength": 1,
-            "description": "LLM provider label, e.g. anthropic, openai, bedrock, google, mistral, cohere."
+            "description": "LLM provider label. SHOULD be one of the ids registered in SPEC.md 4.7 when one names the provider; stays an open string, and an unregistered value is legal. Ids are lowercase [a-z0-9-]."
           },
           "model": {
             "type": "string",
