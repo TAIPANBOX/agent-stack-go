@@ -177,7 +177,11 @@ func TestAClientLeakingItsPrivateKeyIsRefusedRatherThanHelped(t *testing.T) {
 	raw, _ := json.Marshal(pub)
 	var members map[string]any
 	_ = json.Unmarshal(raw, &members)
-	members["d"] = enc(k.D.Bytes())
+	priv, err := k.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	members["d"] = enc(priv)
 
 	header, _ := json.Marshal(map[string]any{"typ": "dpop+jwt", "alg": "ES256", "jwk": members})
 	claims, _ := json.Marshal(map[string]any{"htm": method, "htu": url, "iat": now.Unix(), "jti": "d"})

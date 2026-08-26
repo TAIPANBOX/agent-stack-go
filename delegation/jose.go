@@ -111,12 +111,25 @@ func (s Set) Find(kid string) (JWK, bool) {
 // `/.well-known/jwks.json`, and a `d` member there is the signing key, in
 // public, forever.
 func FromPublic(pub *ecdsa.PublicKey, kid string) JWK {
-	size := (pub.Curve.Params().BitSize + 7) / 8
+	// `Bytes` and not `pub.X`/`pub.Y`: those have been deprecated since Go 1.25
+	// and the reason given is not style. Reading and writing the raw
+	// coordinates is how a caller produces a key that is not on its curve, and
+	// `big.Int` is not a type for operating on cryptographic values. The
+	// uncompressed encoding is `0x04 || X || Y`, both halves fixed-width, so
+	// splitting it needs no padding of its own.
+	raw, err := pub.Bytes()
+	if err != nil || len(raw) < 3 || raw[0] != 4 || (len(raw)-1)%2 != 0 {
+		// A key that cannot encode itself is one this service must not publish.
+		// An empty JWK matches no `kid` and verifies nothing, which is the
+		// failure that stops rather than the one that spreads.
+		return JWK{}
+	}
+	half := (len(raw) - 1) / 2
 	return JWK{
 		Kty: "EC",
 		Crv: curveName(pub.Curve),
-		X:   b64(pad(pub.X.Bytes(), size)),
-		Y:   b64(pad(pub.Y.Bytes(), size)),
+		X:   b64(raw[1 : 1+half]),
+		Y:   b64(raw[1+half:]),
 		Kid: kid,
 		Use: "sig",
 		Alg: "ES256",
@@ -375,9 +388,23 @@ func ecPublic(j JWK) (*ecdsa.PublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	pub := &ecdsa.PublicKey{Curve: curve, X: new(big.Int).SetBytes(x), Y: new(big.Int).SetBytes(y)}
-	if !curve.IsOnCurve(pub.X, pub.Y) {
-		// An off-curve point is not a typo, it is an invalid-curve attack.
+	size := (curve.Params().BitSize + 7) / 8
+	if len(x) > size || len(y) > size {
+		return nil, errors.New("delegation: a coordinate is wider than the curve")
+	}
+	// Rebuilt as the uncompressed encoding and handed to the standard library,
+	// which PERFORMS THE ON-CURVE CHECK ITSELF. That check used to be a
+	// hand-rolled `IsOnCurve` here, and an off-curve point is not a typo: it is
+	// an invalid-curve attack, which turns ECDSA verification into arithmetic
+	// in a group the attacker chose. `elliptic.Curve.IsOnCurve` has been
+	// deprecated since Go 1.21 as "a low-level unsafe API", and the replacement
+	// does the same check without this package owning it.
+	raw := make([]byte, 1+2*size)
+	raw[0] = 4
+	copy(raw[1+size-len(x):1+size], x)
+	copy(raw[1+2*size-len(y):], y)
+	pub, err := ecdsa.ParseUncompressedPublicKey(curve, raw)
+	if err != nil {
 		return nil, errors.New("delegation: the point is not on the curve")
 	}
 	return pub, nil

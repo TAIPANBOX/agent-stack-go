@@ -54,7 +54,10 @@ func TestTheAlgorithmComesFromTheKeyAndNeverFromTheHeader(t *testing.T) {
 
 	// A token whose header claims a symmetric algorithm, signed with the
 	// public key bytes as the HMAC secret: the classic downgrade.
-	pub := elliptic.Marshal(elliptic.P256(), k.PublicKey.X, k.PublicKey.Y)
+	pub, err := k.PublicKey.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
 	forged := hs256(t, "kid-1", map[string]any{"sub": "attacker"}, pub)
 	if _, err := VerifyToken(forged, set); err == nil {
 		t.Fatal("an HS256 token verified against an EC key: alg confusion is open")
