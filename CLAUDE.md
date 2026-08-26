@@ -37,11 +37,15 @@ commit messages, as tooling for acting against anyone else.
 
 ## Blast radius, read this before calling a change routine
 
-This module is imported **by tag** by seven repos: `idryx`, `wardryx`,
-`mockryx`, `qryx`, `heraldyx`, `scopyx` and `terraform-provider-taipan`.
+This module is imported **by tag** by eight repos: `idryx`, `wardryx`,
+`mockryx`, `qryx`, `heraldyx`, `scopyx`, `terraform-provider-taipan` and
+`vouchryx`.
 
-It said six until 2026-08-10, and the seventh had been importing it for a
-while. scopyx joined the estate on 2026-08-09 and this paragraph, the README's
+It said six until 2026-08-10 and seven until 2026-08-26, and each time the
+newest importer had already been importing it. vouchryx was created on
+2026-08-26 and imported this module the same day, which is the shortest that
+gap has ever been and still long enough for all three places below to
+disagree. scopyx joined the estate on 2026-08-09 and this paragraph, the README's
 sentence and the architecture diagram's alt text all went on naming six, which
 is the same shape the section below already describes about the version table:
 a list kept by hand in a file that holds no status has no owner and no clock.
