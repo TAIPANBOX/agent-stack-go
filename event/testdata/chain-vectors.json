@@ -1,5 +1,5 @@
 {
-  "comment": "Cross-language pinned vectors for the agent-passport SPEC 6.5 prev_hash chain. Every implementation (Go: this repo's event package; Rust: tokenfuse's agent-event exporter; Python: engram's EventLog / verdryx's events) MUST reproduce these byte-for-byte: 'canonical' is the RFC 8785 (JCS) serialization of 'event' with any prev_hash field removed, and 'hash' is sha256: + hex(sha256(canonical)) - the value the NEXT event in a chained stream carries as its prev_hash. The three events form one chain: event 2's prev_hash is vector 1's hash, event 3's is vector 2's. Field order inside 'event' here is irrelevant by construction; canonicalization sorts it.",
+  "comment": "Cross-language pinned vectors for the agent-passport SPEC 6.5 prev_hash chain. Every implementation (Go: this repo's event package; Rust: tokenfuse's agent-event exporter; Python: engram's EventLog / verdryx's events) MUST reproduce these byte-for-byte: 'canonical' is the RFC 8785 (JCS) serialization of 'event' with any prev_hash field removed, and 'hash' is sha256: + hex(sha256(canonical)) - the value the NEXT event in a chained stream carries as its prev_hash. The first three events form one chain: event 2's prev_hash is vector 1's hash, event 3's is vector 2's. Field order inside 'event' here is irrelevant by construction; canonicalization sorts it. Vector 4 is the one no implementation can produce from a modelled struct: it carries `delegation_proof` (SPEC 5.2), a top-level sibling of `data` that a language's event type may not have a field for. It exists because Go's did not, and Go hashed a re-marshal of its own struct, so the member vanished before the digest and an honestly chained stream was reported as tampered with. Canonicalization is over THE OBJECT, and this vector is what makes every implementation prove that rather than happen to do it.",
   "vectors": [
     {
       "event": {
@@ -10,7 +10,10 @@
         "agent_id": "agent://acme.example/support/tier1-bot",
         "severity": "high",
         "run_id": "run-0001",
-        "data": { "policy": "finance-guard", "reason": "deny_tool: shell" }
+        "data": {
+          "policy": "finance-guard",
+          "reason": "deny_tool: shell"
+        }
       },
       "canonical": "{\"agent_id\":\"agent://acme.example/support/tier1-bot\",\"data\":{\"policy\":\"finance-guard\",\"reason\":\"deny_tool: shell\"},\"run_id\":\"run-0001\",\"schema\":\"taipanbox.dev/agent-event/v0.2\",\"severity\":\"high\",\"source\":\"wardryx\",\"ts\":\"2026-07-24T12:00:00Z\",\"type\":\"policy_deny\"}",
       "hash": "sha256:b43502c0ed6893238f2635be7a909cde89df1c2eecaef4d84871b83cf21cb31b"
@@ -24,8 +27,19 @@
         "agent_id": "agent://acme.example/support/tier1-bot",
         "severity": "critical",
         "run_id": "run-0001",
-        "on_behalf_of": ["user://acme.example/alice", "agent://acme.example/orchestrator"],
-        "data": { "budget_usd": 12.5, "n": 3, "note": "обмеження діє", "nested": { "b": 2, "a": 1 } }
+        "on_behalf_of": [
+          "user://acme.example/alice",
+          "agent://acme.example/orchestrator"
+        ],
+        "data": {
+          "budget_usd": 12.5,
+          "n": 3,
+          "note": "обмеження діє",
+          "nested": {
+            "b": 2,
+            "a": 1
+          }
+        }
       },
       "canonical": "{\"agent_id\":\"agent://acme.example/support/tier1-bot\",\"data\":{\"budget_usd\":12.5,\"n\":3,\"nested\":{\"a\":1,\"b\":2},\"note\":\"обмеження діє\"},\"on_behalf_of\":[\"user://acme.example/alice\",\"agent://acme.example/orchestrator\"],\"run_id\":\"run-0001\",\"schema\":\"taipanbox.dev/agent-event/v0.2\",\"severity\":\"critical\",\"source\":\"tokenfuse\",\"ts\":\"2026-07-24T12:00:01Z\",\"type\":\"budget_exhausted\"}",
       "hash": "sha256:488f1017967bf9510c62d7c31b9d5a0086ff2000d90a7d4266f171a131430243"
@@ -38,10 +52,34 @@
         "type": "evidence_signed",
         "agent_id": "agent://acme.example/support/tier1-bot",
         "severity": "info",
-        "data": { "algo": "ML-DSA-87" }
+        "data": {
+          "algo": "ML-DSA-87"
+        }
       },
       "canonical": "{\"agent_id\":\"agent://acme.example/support/tier1-bot\",\"data\":{\"algo\":\"ML-DSA-87\"},\"schema\":\"taipanbox.dev/agent-event/v0.2\",\"severity\":\"info\",\"source\":\"qryx\",\"ts\":\"2026-07-24T12:00:02Z\",\"type\":\"evidence_signed\"}",
       "hash": "sha256:998cbc146b07e115318ce378e0579fcd1927066ef4316900ec7d66ba157e7c4b"
+    },
+    {
+      "event": {
+        "schema": "taipanbox.dev/agent-event/v0.3",
+        "ts": "2026-08-26T12:00:03Z",
+        "source": "vouchryx",
+        "type": "delegation_issued",
+        "agent_id": "agent://acme.example/support/tier1-bot",
+        "severity": "info",
+        "run_id": "run-0001",
+        "delegation_proof": {
+          "jti": "tok-9f2c",
+          "jkt": "NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs",
+          "iss": "https://idryx.acme.example",
+          "exp": 1786000000
+        },
+        "data": {
+          "scope": "read:tickets"
+        }
+      },
+      "canonical": "{\"agent_id\":\"agent://acme.example/support/tier1-bot\",\"data\":{\"scope\":\"read:tickets\"},\"delegation_proof\":{\"exp\":1786000000,\"iss\":\"https://idryx.acme.example\",\"jkt\":\"NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs\",\"jti\":\"tok-9f2c\"},\"run_id\":\"run-0001\",\"schema\":\"taipanbox.dev/agent-event/v0.3\",\"severity\":\"info\",\"source\":\"vouchryx\",\"ts\":\"2026-08-26T12:00:03Z\",\"type\":\"delegation_issued\"}",
+      "hash": "sha256:97161b1b4dd0b64d683e27611279beb7024a91d0dba2fd736d10e96edabd7680"
     }
   ]
 }

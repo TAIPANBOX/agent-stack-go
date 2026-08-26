@@ -19,6 +19,12 @@ const (
 	vecH2 = "sha256:488f1017967bf9510c62d7c31b9d5a0086ff2000d90a7d4266f171a131430243"
 	vecC3 = `{"agent_id":"agent://acme.example/support/tier1-bot","data":{"algo":"ML-DSA-87"},"schema":"taipanbox.dev/agent-event/v0.2","severity":"info","source":"qryx","ts":"2026-07-24T12:00:02Z","type":"evidence_signed"}`
 	vecH3 = "sha256:998cbc146b07e115318ce378e0579fcd1927066ef4316900ec7d66ba157e7c4b"
+	// Vector 4 has no vecEvent4(), and that absence is the point: it carries
+	// `delegation_proof`, which Event has no field for. It is exercised through
+	// the RAW path only, because the raw path is the only one that can express
+	// it, which is exactly what the vector is pinning.
+	vecC4 = `{"agent_id":"agent://acme.example/support/tier1-bot","data":{"scope":"read:tickets"},"delegation_proof":{"exp":1786000000,"iss":"https://idryx.acme.example","jkt":"NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs","jti":"tok-9f2c"},"run_id":"run-0001","schema":"taipanbox.dev/agent-event/v0.3","severity":"info","source":"vouchryx","ts":"2026-08-26T12:00:03Z","type":"delegation_issued"}`
+	vecH4 = "sha256:97161b1b4dd0b64d683e27611279beb7024a91d0dba2fd736d10e96edabd7680"
 )
 
 func vecEvent1() Event {
@@ -106,11 +112,11 @@ func TestVectorFileMatchesPinnedConstants(t *testing.T) {
 	if err := json.Unmarshal(raw, &file); err != nil {
 		t.Fatalf("parse vectors: %v", err)
 	}
-	if len(file.Vectors) != 3 {
-		t.Fatalf("expected 3 vectors, got %d", len(file.Vectors))
+	if len(file.Vectors) != 4 {
+		t.Fatalf("expected 4 vectors, got %d", len(file.Vectors))
 	}
-	wantCanonical := []string{vecC1, vecC2, vecC3}
-	wantHash := []string{vecH1, vecH2, vecH3}
+	wantCanonical := []string{vecC1, vecC2, vecC3, vecC4}
+	wantHash := []string{vecH1, vecH2, vecH3, vecH4}
 	for i, v := range file.Vectors {
 		if v.Canonical != wantCanonical[i] {
 			t.Errorf("vector %d: file canonical differs from pinned constant", i+1)
@@ -120,12 +126,22 @@ func TestVectorFileMatchesPinnedConstants(t *testing.T) {
 		}
 		// The event object in the file must itself canonicalize to the
 		// pinned bytes: proves the file's event and the constants agree.
-		e, err := Unmarshal(v.Event)
-		if err != nil {
-			t.Fatalf("vector %d: event: %v", i+1, err)
-		}
-		if got := mustCanonical(t, e); got != wantCanonical[i] {
+		//
+		// Over the OBJECT, not over an Event parsed out of it. This loop went
+		// through Unmarshal until vector 4 arrived, and vector 4 is the one
+		// carrying a member Event has no field for, so the struct dropped it
+		// and the canonical bytes came back short. That is the same defect
+		// invariant 18 is about, in the test that was supposed to be watching
+		// for it.
+		if got, err := CanonicalizeRaw(v.Event); err != nil {
+			t.Fatalf("vector %d: canonicalize: %v", i+1, err)
+		} else if string(got) != wantCanonical[i] {
 			t.Errorf("vector %d: file event canonicalizes differently:\n got %s", i+1, got)
+		}
+		if got, err := ChainHashRaw(v.Event); err != nil {
+			t.Fatalf("vector %d: hash: %v", i+1, err)
+		} else if got != wantHash[i] {
+			t.Errorf("vector %d: file event hashes to %s, pinned %s", i+1, got, wantHash[i])
 		}
 	}
 }
@@ -363,5 +379,44 @@ func TestVerifyChainMalformedLinePoisonsExactlyTheNextLink(t *testing.T) {
 	}
 	if !report.Ok() {
 		t.Fatalf("no genuine break here: %+v", report)
+	}
+}
+
+// The divergence itself, pinned. Vector 4 exists because an Event cannot carry
+// `delegation_proof`, and the day somebody decides the raw path is redundant
+// and routes it back through the struct, this is what says no.
+func TestTheStructPathCannotProduceVectorFour(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("testdata", "chain-vectors.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var file struct {
+		Vectors []struct {
+			Event json.RawMessage `json:"event"`
+		} `json:"vectors"`
+	}
+	if err := json.Unmarshal(raw, &file); err != nil {
+		t.Fatal(err)
+	}
+	e, err := Unmarshal(file.Vectors[3].Event)
+	if err != nil {
+		t.Fatalf("vector 4 must still be a well-formed event: %v", err)
+	}
+	viaStruct, err := ChainHash(e)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if viaStruct == vecH4 {
+		t.Fatal("the struct path now reproduces vector 4, which means Event grew a " +
+			"field for delegation_proof. That is not a failure, it is news: pick a " +
+			"member the struct still does not model, or this vector has stopped " +
+			"pinning anything.")
+	}
+	viaRaw, err := ChainHashRaw(file.Vectors[3].Event)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if viaRaw != vecH4 {
+		t.Fatalf("the raw path must reproduce vector 4: got %s, want %s", viaRaw, vecH4)
 	}
 }
