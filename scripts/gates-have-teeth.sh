@@ -192,6 +192,25 @@ run_case "reproducible-build: a version back in the asset name" fail \
 	"carries the version"
 
 # invariant 13: a vendored copy that drifted from the owner of the contract.
+# This check reads ANOTHER repository, and git hands a hook GIT_DIR pointing at
+# the repository being pushed. `git -C <elsewhere>` keeps that variable, so
+# every ref this script resolves and every blob it reads would come out of THIS
+# repository's object database while pointed at agent-passport's working tree.
+#
+# Measured 2026-08-26, before and after the fix, with AGENT_PASSPORT_DIR set:
+# the old script exits 0 in a shell and 1 under a leaked GIT_DIR; the fixed one
+# exits 0 in both. That difference is what this case pins, and only running the
+# gate under a hook's environment can see it.
+#
+# No matching `fail` case putting the leak back: this gate needs a real
+# agent-passport checkout, which CI provides and a bare machine may not, so a
+# case whose subject is conditional would report TOOTHLESS where it is absent.
+# The fail direction is pinned by the measurement in schemas-in-sync.sh's own
+# comment. tokenfuse and trailryx reached the same shape on the same day.
+run_case "schemas-in-sync: the same answer under a hook's environment" pass \
+	'GIT_DIR="$PWD/.git" ./scripts/schemas-in-sync.sh' \
+	""
+
 run_case "schemas-in-sync: a vendored schema drifts from the canonical" fail \
 	'./scripts/schemas-in-sync.sh' \
 	"$(py 'edit("cmd/agent-conform/schemas/agent-passport.schema.json", "\"type\"", "\"TYPE\"")')" \

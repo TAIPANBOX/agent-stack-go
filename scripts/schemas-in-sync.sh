@@ -78,6 +78,31 @@ cd "$(git rev-parse --show-toplevel)" || exit 1
 ROOT="$(pwd)"
 CANON_REPO="${AGENT_PASSPORT_DIR:-$(cd .. && pwd)/agent-passport}"
 
+# ASKING agent-passport A QUESTION NEEDS THE ENVIRONMENT CLEARED, AND THE
+# FAILURE HERE IS QUIETER THAN THE ONE THAT WAS FOUND ELSEWHERE.
+#
+# git runs a hook with GIT_DIR set to the repository being pushed, and `git -C
+# <elsewhere>` changes the DIRECTORY without clearing it. Every command below
+# would then resolve refs and read blobs out of THIS repository's object
+# database while pointed at agent-passport's working tree.
+#
+# What that does to this particular check is the part worth writing down.
+# `show "$CANON_REF:$canon"` would look up a canonical schema path in
+# agent-stack-go's own objects. Where two repositories hold a file at the same
+# path, that SUCCEEDS and returns the wrong content, and a check comparing a
+# vendored copy against its original would compare the copy against itself and
+# report agreement. @measured 2026-08-26 it does not succeed here, because this
+# repository vendors those schemas at different paths, so every file is skipped
+# and the `compared -eq 0` guard below fails loudly instead. That guard is why
+# this was a nuisance rather than a hole, and it is not a reason to leave the
+# cause in place: the paths could line up tomorrow.
+#
+# Latent rather than live today: this repository installs no git hook, so
+# nothing runs this script with GIT_DIR set. That is a fact about the repository
+# on this date and not about the script. Found by estate-gates C9, which was
+# written after the same fault cost trailryx three push attempts.
+canongit() { env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE git "$@"; }
+
 problems=0
 note() {
 	echo "FAIL: $1"
@@ -103,9 +128,9 @@ fi
 # resolved rather than assumed, so a shallow CI clone and a full local one land
 # in the same place.
 CANON_REF=""
-for candidate in "$(git -C "$CANON_REPO" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)" origin/main main HEAD; do
+for candidate in "$(canongit -C "$CANON_REPO" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)" origin/main main HEAD; do
 	[ -n "$candidate" ] || continue
-	if git -C "$CANON_REPO" rev-parse --verify --quiet "$candidate^{commit}" >/dev/null; then
+	if canongit -C "$CANON_REPO" rev-parse --verify --quiet "$candidate^{commit}" >/dev/null; then
 		CANON_REF="$candidate"
 		break
 	fi
@@ -118,10 +143,10 @@ fi
 
 printf 'canonical: TAIPANBOX/agent-passport %s at %s (%s)\n' \
 	"$CANON_REF" \
-	"$(git -C "$CANON_REPO" rev-parse --short "$CANON_REF")" \
-	"$(git -C "$CANON_REPO" log -1 --format=%cs "$CANON_REF")"
+	"$(canongit -C "$CANON_REPO" rev-parse --short "$CANON_REF")" \
+	"$(canongit -C "$CANON_REPO" log -1 --format=%cs "$CANON_REF")"
 
-head_ref="$(git -C "$CANON_REPO" rev-parse --abbrev-ref HEAD 2>/dev/null)"
+head_ref="$(canongit -C "$CANON_REPO" rev-parse --abbrev-ref HEAD 2>/dev/null)"
 if [ "$CANON_REF" != "HEAD" ] && [ -n "$head_ref" ] && [ "$head_ref" != "${CANON_REF#origin/}" ]; then
 	printf 'note: that checkout is on %s; this compares against %s on purpose, since\n' "$head_ref" "$CANON_REF"
 	printf '      an unmerged branch over there is a proposal and not the contract.\n'
@@ -131,7 +156,7 @@ fi
 canonical=()
 while IFS= read -r f; do
 	[ -n "$f" ] && canonical+=("$f")
-done < <(git -C "$CANON_REPO" ls-tree -r --name-only "$CANON_REF" -- schemas/ | grep '\.schema\.json$' | sort)
+done < <(canongit -C "$CANON_REPO" ls-tree -r --name-only "$CANON_REF" -- schemas/ | grep '\.schema\.json$' | sort)
 
 if [ ${#canonical[@]} -eq 0 ]; then
 	note "$CANON_REPO at $CANON_REF holds no schemas/*.schema.json at all, so this compared nothing"
@@ -146,7 +171,7 @@ compared=0
 for canon in "${canonical[@]}"; do
 	base="$(basename "$canon")"
 	ref_copy="$work/$base"
-	if ! git -C "$CANON_REPO" show "$CANON_REF:$canon" >"$ref_copy" 2>/dev/null; then
+	if ! canongit -C "$CANON_REPO" show "$CANON_REF:$canon" >"$ref_copy" 2>/dev/null; then
 		note "could not read $canon out of $CANON_REF"
 		continue
 	fi
