@@ -287,10 +287,13 @@ had one, is worse than an absent invariant.
     harness version differ only in how many layers of quoting sit between the
     text and python. So every mutation asserts it applied: a case whose edit
     changed nothing is a failure, not a pass.
-    *(gate: `scripts/gates-have-teeth.sh`, 11 cases: five real faults each gate
-    must catch, two non-faults they must not, and four subjects taken away
+    *(gate: `scripts/gates-have-teeth.sh`, 12 cases: five real faults each gate
+    must catch, three non-faults they must not, and four subjects taken away
     entirely, where the gate must say it measured nothing rather than report
-    OK. It runs in the `schemas` CI job rather than `build`, because one of the
+    OK. The third non-fault arrived on 2026-08-26 and is the first here that
+    runs a gate under a HOOK'S ENVIRONMENT rather than in a plain shell,
+    because the fault it pins exists only there: `schemas-in-sync.sh` reads
+    another repository, git exports GIT_DIR into a hook, and `git -C` keeps it. It runs in the `schemas` CI job rather than `build`, because one of the
     four gates needs the sibling repository checked out beside this one, and in
     `build` that case would fail for the wrong reason.)*
 
