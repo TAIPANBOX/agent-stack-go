@@ -503,3 +503,20 @@ func TestANonTwoHundredAnswerIsNeverReadAsAnEmptyList(t *testing.T) {
 		t.Fatalf("a 503 reset the age to %v", age)
 	}
 }
+
+// TestTheDefaultFailModeRefuses pins the ZERO VALUE, which is the mode every
+// deployment that never names one gets. Every other test in this file passes a
+// mode explicitly, so before this one the default was the single most-used
+// setting in the package and the only one nothing asserted.
+func TestTheDefaultFailModeRefuses(t *testing.T) {
+	var unset FailMode
+	if unset != FailClosed {
+		t.Fatalf("the unnamed fail mode is %v, want closed: an operator who never chose gets whatever this is", unset)
+	}
+	// A cache nobody ever fetched into, built without naming a mode. This is
+	// exactly the shape a half-wired door has.
+	a := new(Revocations).Check("tok-1", "user://acme/alice", revNow.Unix(), revNow)
+	if !a.Revoked || a.Basis != BasisNever {
+		t.Fatalf("a list nobody fetched answered %+v, want refused on BasisNever", a)
+	}
+}

@@ -183,16 +183,37 @@ func ParseSnapshot(raw []byte) (Snapshot, error) {
 type FailMode int
 
 const (
-	// FailOpen lets a call through when the list is too old to answer a miss.
-	// The zero value and the default, because it is what every deployment does
-	// today: nothing polls, so nothing is refused, and an addition that starts
-	// refusing traffic on upgrade is a breaking change wearing a security
-	// fix's clothes.
-	FailOpen FailMode = iota
-	// FailClosed refuses when the list is too old to answer a miss, for a
-	// deployment that has decided an unverifiable delegation is not one it
-	// will honour.
-	FailClosed
+	// FailClosed refuses when the list is too old to answer a miss. The zero
+	// value and the default.
+	//
+	// The estate has answered "a dependency is unreachable" twice before, both
+	// times defaulting to open, and this one deliberately differs. The
+	// difference is in what the unreachable thing was going to say. An
+	// unreachable PDP says NOTHING, so letting the call through decides a
+	// question no answer was coming for. An unreachable revocation list says
+	// something specific and narrow: I cannot confirm this authority still
+	// exists. Defaulting to open there does not preserve availability in the
+	// absence of information, it discards information the operator asked for.
+	//
+	// It is also an attack primitive rather than only an outage. Fail-open
+	// makes "revoking ends the right to act" conditional on the revocation
+	// service being reachable, so whoever can drop it, or partition one door
+	// from it, buys a window in which revoked tokens work again. That window is
+	// silent: the calls succeed and nothing anywhere says why.
+	//
+	// Closed breaks loudly instead, and the blast radius is bounded three ways
+	// that a general fail-closed default would not be. The check is off
+	// entirely unless a deployment wires a poller, so nothing that does not use
+	// this starts refusing on upgrade. A poller that is working serves every
+	// answer from a fresh list and refuses nothing. And a token minted by
+	// vouchryx lives five minutes by default, so the outage this can cause is
+	// bounded by the same clock the control is bounded by.
+	FailClosed FailMode = iota
+	// FailOpen lets a call through when the list is too old to answer a miss,
+	// for a deployment that has decided an unverifiable delegation is one it
+	// will honour rather than lose the traffic. A deliberate choice, which is
+	// why it is not what an operator who chose nothing gets.
+	FailOpen
 )
 
 func (f FailMode) refuses() bool { return f == FailClosed }
