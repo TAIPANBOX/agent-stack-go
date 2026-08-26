@@ -470,10 +470,14 @@ refactors that keep every exported signature identical, and additions to
     `TestARevokedDelegationIsRefusedByVerifyAfterAPollPicksItUp` is the one this
     exists for, running the whole path over a real socket, and
     `TestATokenTheListDoesNotNameIsNotRefused` is its negative control, since a
-    cache that refused everything would pass it. Every one was run against a
-    `Check` stubbed to what a nil `Options.Revoked` does today; fifteen went red
-    there, verbatim among them `after the revocation Verify must refuse it, got
-    <nil>`.
+    cache that refused everything would pass it. Every one of the twenty-four was run against
+    a `Check` stubbed to what a nil `Options.Revoked` does today, and sixteen
+    went red there, verbatim among them `after the revocation Verify must refuse
+    it, got <nil>`. Fifteen of the sixteen were run in one pass before the code
+    existed; the sixteenth,
+    `TestANonTwoHundredAnswerIsNeverReadAsAnEmptyList`, was written afterwards to
+    close a surviving mutant and was run against the same stub separately rather
+    than being folded into that count on the strength of an argument.
 
     Eleven mutants planted in the product code on 2026-08-26. Ten were caught
     and **one survived, which is the finding worth keeping**: with the HTTP
