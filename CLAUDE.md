@@ -107,6 +107,7 @@ staticcheck ./...
 go test -race ./...
 go build ./...
 ./scripts/deps-layering.sh
+./scripts/features-are-bound.sh
 ./scripts/schemas-in-sync.sh   # needs TAIPANBOX/agent-passport checked out beside this repo
 ./scripts/readme-numbers.sh
 ./scripts/reproducible-build.sh
@@ -291,10 +292,13 @@ had one, is worse than an absent invariant.
     harness version differ only in how many layers of quoting sit between the
     text and python. So every mutation asserts it applied: a case whose edit
     changed nothing is a failure, not a pass.
-    *(gate: `scripts/gates-have-teeth.sh`, 12 cases: five real faults each gate
-    must catch, three non-faults they must not, and four subjects taken away
+    *(gate: `scripts/gates-have-teeth.sh`, 16 cases: seven real faults each gate
+    must catch, four non-faults they must not, and five subjects taken away
     entirely, where the gate must say it measured nothing rather than report
-    OK. The third non-fault arrived on 2026-08-26 and is the first here that
+    OK. It said 12 until `features-are-bound.sh` arrived on 2026-08-26 with four
+    cases of its own, which is invariant 12's shape inside the file that holds
+    it: the count is updated in the commit that changes it, because somebody
+    looks. `./scripts/gates-have-teeth.sh | grep -c '^ok '` is the command. The third non-fault arrived on 2026-08-26 and is the first here that
     runs a gate under a HOOK'S ENVIRONMENT rather than in a plain shell,
     because the fault it pins exists only there: `schemas-in-sync.sh` reads
     another repository, git exports GIT_DIR into a hook, and `git -C` keeps it. It runs in the `schemas` CI job rather than `build`, because one of the
@@ -412,3 +416,104 @@ refactors that keep every exported signature identical, and additions to
     call site from reaching for the struct-shaped pair; the names and the doc
     comments are what stand between it and this bug returning.)*
 
+
+19. **A list somebody can be told about is a list something reads, and its AGE
+    is a decision rather than an accident.** vouchryx has served
+    `GET /v1/revocations` since the day it was written, with an `as_of` cursor
+    put there so a poller could tell an empty list from a failed fetch. Measured
+    2026-08-26: nothing polled it. No consumer of this module set
+    `Options.Revoked`, tokenfuse's two doors passed a closure answering false,
+    and four documents in two repositories said in the present tense that every
+    enforcement point consults it. This module's README was one of them, and it
+    is corrected in the same wave: the rule here is to change the text rather
+    than to narrate the change.
+
+    `Revocations` is the local cache `Options.Revoked` is filled from.
+    **Invariant 15 is intact and this is the seam that keeps it so: the FETCH is
+    out of band and the CHECK is local.** `Check`, `Hook`, `Age`, `AsOf` and
+    `RejectedBackwards` take no `context.Context` and return no `error`, so they
+    cannot block and have nowhere to send a request; `Fetch` and `Refresh` take
+    one, because they can. That is a shape rather than a promise, and the test
+    asserts the shape from both sides, since a check that found no context
+    anywhere would pass on a package with no network code at all.
+
+    **Age decides what a MISS means and never what a HIT means.** The estate has
+    answered "a dependency is unreachable" twice, both times with an
+    operator-chosen fail mode defaulting to open, and `FailMode` here is the
+    same word with the same default so the estate does not answer one question
+    two ways. What a revocation list adds is that a stale list is still mostly
+    right: a PDP you cannot reach tells you nothing, and a list from four
+    minutes ago still holds every revocation older than four minutes. So a hit
+    stands at any age, because nothing un-revokes a token and discarding one we
+    hold would call a token we know is dead a live one. A miss is an inference
+    from the list being COMPLETE, completeness is what expires, and past
+    `DefaultRevocationMaxAge` the fail mode answers a miss instead.
+
+    **One minute is the number, and it is the window in which a revoked token
+    still works.** It comes from the token rather than from taste: vouchryx
+    mints at a five-minute default TTL and caps at an hour, so a list allowed to
+    outlive a token would let one minted after the last poll be revoked and go
+    on working for its whole life, which makes the control decorative for a
+    whole generation of tokens rather than merely late.
+
+    **Never fetched is not stale, and an older answer never replaces a newer
+    one.** `BasisNever` and `BasisStale` both defer to the fail mode and are
+    different faults: a poller nobody wired does not clear itself and nothing
+    else in the estate will mention it. A snapshot whose `as_of` moved backwards
+    is refused and counted, because installing it would reset the age and a view
+    that had stopped moving would start reading as fresh, which turns every
+    other rule here off. Equal cursors ARE accepted: `as_of` is a Unix second
+    and refusing that would break any poller faster than 1 Hz.
+    *(scenarios: `features/revocation.feature`, each bound to a named test, held
+    by `scripts/features-are-bound.sh`, which is invariant 20. Test:
+    twenty-four in `delegation`, of which
+    `TestARevokedDelegationIsRefusedByVerifyAfterAPollPicksItUp` is the one this
+    exists for, running the whole path over a real socket, and
+    `TestATokenTheListDoesNotNameIsNotRefused` is its negative control, since a
+    cache that refused everything would pass it. Every one was run against a
+    `Check` stubbed to what a nil `Options.Revoked` does today; fifteen went red
+    there, verbatim among them `after the revocation Verify must refuse it, got
+    <nil>`.
+
+    Eleven mutants planted in the product code on 2026-08-26. Ten were caught
+    and **one survived, which is the finding worth keeping**: with the HTTP
+    status check deleted, the whole suite stayed green, because the test that
+    was supposed to hold it served a 500 whose body was not JSON, so the PARSER
+    was doing the refusing and the status check could have been removed in
+    silence. `TestANonTwoHundredAnswerIsNeverReadAsAnEmptyList` closes it with a
+    503 carrying a perfectly well-formed body, which is what a gateway, a mesh
+    or a cache in front of vouchryx actually answers, and it goes red under that
+    mutant.)*
+
+    **Where it says nothing.** Nothing here polls: a caller runs `Refresh` on
+    its own schedule, and no consumer of this module does yet, so this is a
+    cache with no poller exactly as `Verify` is a verifier with no caller. It
+    holds no store, so a restart starts at `BasisNever` and the fail mode
+    governs until the first poll lands. And it cannot tell a vouchryx that
+    restarted and forgot its whole list from one whose entries legitimately
+    expired: both answer an empty list with a current cursor, and vouchryx's own
+    README names the in-memory store under NOT PROVEN for that reason.
+
+20. **Every scenario names a test that exists, and every scenario names one at
+    all.** A scenario bound to nothing is a paragraph describing what somebody
+    wanted and proves nothing about the code; a binding pointing at a renamed or
+    deleted test is worse, because it reads as held and no reader can tell
+    without grepping. Two different lies, and only one of them is visible from
+    either side alone.
+
+    Not a BDD runner, deliberately: godog here, cucumber-rs in the Rust repos
+    and pytest-bdd in the Python ones would be three runners and three
+    step-definition styles across an estate whose ask was readability, which the
+    binding delivers at a fraction of the surface. tokenfuse and vouchryx
+    reached the same conclusion and this script is vouchryx's, with the counting
+    made safe on a machine without `bc`.
+
+    What it does NOT do is check that a test asserts what its scenario says, and
+    nothing mechanical can: the steps are prose and the binding is a pointer.
+    What it catches is the pointer breaking, which is the failure that happens
+    on its own while nobody is looking.
+    *(gate: `scripts/features-are-bound.sh`, with four cases in
+    `gates-have-teeth.sh`: a binding renamed to a test that does not exist, a
+    scenario with no binding, a test named in PROSE which must NOT fire it, and
+    every feature file removed, where it must say it measured nothing rather
+    than report OK on an empty set)*

@@ -29,6 +29,12 @@ jobs:
       - name: library packages stay dependency-clean
         run: ./scripts/deps-layering.sh
 
+      # Every scenario in features/ names a test that exists, and every
+      # scenario names one at all. A scenario bound to nothing describes what
+      # somebody wanted; a binding pointing at a renamed test reads as held.
+      - name: every scenario is bound to a test
+        run: ./scripts/features-are-bound.sh
+
       # A number in a README is a claim with no owner: it is right the day it
       # is written and the suite grows in a commit that never opens the file.
       # On 2026-08-05 four of seven such figures on it-rat.com were found
