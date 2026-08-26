@@ -350,3 +350,31 @@ refactors that keep every exported signature identical, and additions to
 - Nothing paid or metered gets enabled without telling the user first and
   getting agreement. This includes anything that would start metering CI.
 - Do not delete or revoke keys, tokens, or certificates on your own initiative.
+
+15. **`delegation` verifies with what the process already holds, and never
+    reaches out.** `Options` carries a key set, an issuer, an audience, a
+    clock, a proof and two optional hooks. There is no client, no URL and no
+    timeout, so a check cannot become a network round trip by accident. wardryx
+    decides at a 3.2 ms p50 and audits every decision; putting signature
+    verification behind a round trip taxes every decision in the estate and
+    makes the token service a hard dependency of every enforcement point at
+    once, which is the shape `dependency_failed` was cut to record.
+    *(test: `TestVerificationTouchesNothingOutsideTheProcess`, which asserts the
+    SHAPE of `Options` rather than observing no traffic today)*
+
+16. **A sender-constrained token is never checked as a bearer token.** A token
+    carrying `cnf.jkt` presented with no proof is REFUSED, not accepted with
+    the binding skipped. An enforcement point that simply forgot to pass a
+    proof would otherwise report success while honouring a stolen token, and
+    that is the failure this whole scheme exists to prevent.
+    *(test: `TestASenderConstrainedTokenCheckedWithoutAProofIsRefused`,
+    `TestATokenPresentedByTheWrongHolderIsRefused`)*
+
+17. **`delegation` READS a chain and does not claim to verify its order.**
+    Invariant 5 already says root-first ordering is a property of how a chain
+    was BUILT and cannot be checked from the finished list. The signature
+    guarantees the issuer put those names in that nesting; that the nesting
+    means what the issuer intended is the issuer's to get right. `Verified`
+    says so in its own doc comment, because a field called `Chain` on a struct
+    called `Verified` invites exactly the wrong reading.
+    *(not enforced; it is a claim this module declines to make)*

@@ -7,7 +7,7 @@
 [![CI](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml/badge.svg)](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go)
 ![Go](https://img.shields.io/badge/go-1.26-00ADD8.svg)
-![tests](https://img.shields.io/badge/tests-90-brightgreen.svg)
+![tests](https://img.shields.io/badge/tests-137-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-v0.6.0-success.svg)
 
@@ -96,6 +96,7 @@ kind of wheel not to hand-roll):
 | `passport` | `taipanbox.dev/agent-passport/v0.1` | the Agent Passport document: identity, owner, runtime, provisioning parent, attestation posture |
 | `event` | `taipanbox.dev/agent-event/v0.2` (v0.1 still accepted) | the agent-event NDJSON envelope, plus an append-only `Writer`, tolerant `Scan`/`ReadFile` readers, and the `ChainedWriter`/`VerifyChain` SPEC 6.5 `prev_hash` integrity chain (`Canonicalize`/`ChainHash`) |
 | `chain` | n/a (a v0.2 normative rule) | delegation-chain helpers: acyclic, root-first, capped at `chain.MaxDepth` (32) entries |
+| `delegation` | RFC 8693 + RFC 9449 | the delegation TOKEN: signing, offline verification against a held key set, DPoP sender-constraint, and the `act` chain. `vouchryx` issues with it; every enforcement point checks with it. Standard library only |
 
 ### `event.Event` - the agent-event envelope
 

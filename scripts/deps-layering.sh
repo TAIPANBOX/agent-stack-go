@@ -2,7 +2,7 @@
 # Enforces invariant 1 of CLAUDE.md: the importable library packages stay
 # dependency-clean, because anything added here lands in six consumers at once.
 #
-#   passport, chain -> standard library only
+#   passport, chain, delegation -> standard library only
 #   event           -> standard library plus github.com/gowebpki/jcs (RFC 8785,
 #                      required by agent-passport SPEC 6.5)
 #
@@ -22,8 +22,11 @@ cd "$(dirname "$0")/.."
 fail=0
 
 # A Go import is standard library when its first path segment carries no dot.
+checked=()
+
 check_pkg() {
 	local pkg="$1"
+	checked+=("$pkg")
 	shift
 	local allowed=("$@")
 
@@ -58,6 +61,11 @@ check_pkg() {
 
 check_pkg passport
 check_pkg chain
+# delegation verifies RFC 8693 tokens for every enforcement point in the estate.
+# Standard library only, and here that is not a preference: the security-
+# critical part is the REFUSING, and a library would be making those decisions
+# on our behalf in seven consumers at once.
+check_pkg delegation
 check_pkg event github.com/gowebpki/jcs
 
 if [ "$fail" -ne 0 ]; then
@@ -69,4 +77,8 @@ if [ "$fail" -ne 0 ]; then
 	exit 1
 fi
 
-echo "OK: library packages are dependency-clean (passport, chain, event)."
+# Named from what was actually checked, not from a list written beside it.
+# CLAUDE.md's own blast-radius section is about exactly this: a figure kept by
+# hand in a file has no owner and no clock, and this message said
+# "(passport, chain, event)" for the whole of the day `delegation` was added.
+echo "OK: ${#checked[@]} library package(s) are dependency-clean (${checked[*]})."
