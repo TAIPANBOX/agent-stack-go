@@ -26,6 +26,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -46,10 +47,27 @@ const ChainHashPrefix = "sha256:"
 const resumeWindow = 1 << 20
 
 // Canonicalize returns the RFC 8785 (JCS) canonical serialization of e with
-// the prev_hash field removed - the exact byte string SPEC §6.5 defines as
-// the hash input. The removal is by construction, not by string surgery:
-// the field is cleared on a copy before marshaling, and `omitempty` keeps
-// it out of the JSON entirely.
+// the prev_hash field removed. The removal is by construction, not by string
+// surgery: the field is cleared on a copy before marshaling, and `omitempty`
+// keeps it out of the JSON entirely.
+//
+// USE THIS ONLY WHERE THE STRUCT IS THE ORIGIN of the line, which is to say
+// where you are about to write e and nothing else has ever been in it. SPEC
+// §6.5 defines the hash over "the event object", and an Event is a MODEL of
+// an event object, not the object: a member the spec registers and this
+// struct does not carry is dropped by Marshal and is therefore absent from
+// the digest.
+//
+// That is not hypothetical. `delegation_proof` (SPEC §5.2) is a top-level
+// sibling of `data` precisely because `data` is the producer's free-form room
+// and a proof is not free-form, and it went into the schemas on 2026-08-26
+// with nothing in this struct to hold it. Canonicalizing a PARSED event
+// therefore produced a digest over what this package understood rather than
+// over what was written, and VerifyChain reported an honest stream as a
+// broken chain: our own conformance tool accusing a conformant producer of
+// tampering.
+//
+// For a line that came from anywhere else, use CanonicalizeRaw.
 func Canonicalize(e Event) ([]byte, error) {
 	e.PrevHash = ""
 	data, err := Marshal(e)
@@ -63,15 +81,60 @@ func Canonicalize(e Event) ([]byte, error) {
 	return canonical, nil
 }
 
-// ChainHash returns the SPEC §6.5 hash of e: the value the NEXT event in a
-// chained stream carries as its prev_hash.
+// ChainHash returns the hash of e: the value the NEXT event in a chained
+// stream carries as its prev_hash. It carries Canonicalize's restriction in
+// full, so read that doc comment before reaching for this one.
 func ChainHash(e Event) (string, error) {
 	canonical, err := Canonicalize(e)
 	if err != nil {
 		return "", err
 	}
+	return digest(canonical), nil
+}
+
+// CanonicalizeRaw returns the RFC 8785 (JCS) canonical serialization of one
+// event LINE with its prev_hash member removed: the exact byte string SPEC
+// §6.5 defines as the hash input, over the object as written rather than over
+// this package's model of it.
+//
+// Members are held as json.RawMessage rather than decoded into `any`. Two
+// reasons, and the second is the one that bites: an unmodelled member reaches
+// the digest byte for byte, and a large integer keeps its value instead of
+// going through float64, where an id or a timestamp beyond 2^53 would come
+// back a different number. JCS then normalizes what is genuinely normalizable.
+//
+// This is what every verification and every chain resume uses. A digest over
+// a re-marshal is only correct where the struct was the origin.
+func CanonicalizeRaw(line []byte) ([]byte, error) {
+	var obj map[string]json.RawMessage
+	if err := json.Unmarshal(line, &obj); err != nil {
+		return nil, fmt.Errorf("event: canonicalize raw: %w", err)
+	}
+	delete(obj, "prev_hash")
+	data, err := json.Marshal(obj)
+	if err != nil {
+		return nil, fmt.Errorf("event: canonicalize raw: %w", err)
+	}
+	canonical, err := jcs.Transform(data)
+	if err != nil {
+		return nil, fmt.Errorf("event: canonicalize raw: %w", err)
+	}
+	return canonical, nil
+}
+
+// ChainHashRaw returns the SPEC §6.5 hash of one event line as written: the
+// value the NEXT event in the stream carries as its prev_hash.
+func ChainHashRaw(line []byte) (string, error) {
+	canonical, err := CanonicalizeRaw(line)
+	if err != nil {
+		return "", err
+	}
+	return digest(canonical), nil
+}
+
+func digest(canonical []byte) string {
 	sum := sha256.Sum256(canonical)
-	return ChainHashPrefix + hex.EncodeToString(sum[:]), nil
+	return ChainHashPrefix + hex.EncodeToString(sum[:])
 }
 
 // ChainedWriter is Writer plus the SPEC §6.5 prev_hash chain: every event
@@ -104,8 +167,8 @@ func NewChainedWriter(path string) (*ChainedWriter, error) {
 		return nil, fmt.Errorf("event: open %s: %w", path, err)
 	}
 	cw := &ChainedWriter{file: f}
-	if last, ok := tailEvent(f); ok {
-		if h, err := ChainHash(last); err == nil {
+	if last, ok := tailLine(f); ok {
+		if h, err := ChainHashRaw(last); err == nil {
 			cw.next = h
 			cw.resumedFrom = h
 		}
@@ -134,7 +197,10 @@ func (cw *ChainedWriter) Write(e Event) error {
 	if err != nil {
 		return err
 	}
-	next, err := ChainHash(e)
+	// Hash what goes on disk, not the value it came from. The two agree here
+	// because this struct IS the origin of this line, and saying so in one
+	// path rather than two removes the question of whether they still agree.
+	next, err := ChainHashRaw(data)
 	if err != nil {
 		return err
 	}
@@ -150,13 +216,20 @@ func (cw *ChainedWriter) Close() error {
 	return cw.file.Close()
 }
 
-// tailEvent returns the last well-formed event in f, reading at most
-// resumeWindow bytes from the end. false when the file is empty or its last
-// non-blank line does not parse as an event.
-func tailEvent(f *os.File) (Event, bool) {
+// tailLine returns the last well-formed event LINE in f, as written, reading
+// at most resumeWindow bytes from the end. false when the file is empty or its
+// last non-blank line does not parse as an event.
+//
+// It returns bytes and not an Event on purpose. The caller resumes a chain
+// from this line, and the resumed hash has to be the one every other reader of
+// the file computes, which means it is taken over the object as written. It
+// still PARSES the line, because a resume point has to be a well-formed event
+// and not merely the last bytes before EOF, but the parse is the check and the
+// bytes are the answer.
+func tailLine(f *os.File) ([]byte, bool) {
 	info, err := f.Stat()
 	if err != nil || info.Size() == 0 {
-		return Event{}, false
+		return nil, false
 	}
 	start := info.Size() - resumeWindow
 	skipFirst := start > 0 // a mid-file cut: the first scanned line is partial
@@ -165,7 +238,7 @@ func tailEvent(f *os.File) (Event, bool) {
 	}
 	buf := make([]byte, info.Size()-start)
 	if _, err := f.ReadAt(buf, start); err != nil && err != io.EOF {
-		return Event{}, false
+		return nil, false
 	}
 
 	var last []byte
@@ -181,13 +254,12 @@ func tailEvent(f *os.File) (Event, bool) {
 		}
 	}
 	if last == nil {
-		return Event{}, false
+		return nil, false
 	}
-	e, err := Unmarshal(last)
-	if err != nil {
-		return Event{}, false
+	if _, err := Unmarshal(last); err != nil {
+		return nil, false
 	}
-	return e, true
+	return last, true
 }
 
 // ChainBreak is one genuine chain violation: an event whose prev_hash is
@@ -276,10 +348,15 @@ func VerifyChain(r io.Reader) (ChainReport, error) {
 		}
 		prevSeen = true
 
-		h, err := ChainHash(e)
+		// The LINE, not the parse of it. SPEC 6.5 hashes the event object,
+		// and `e` is this package's model of one: a member the spec registers
+		// and Event does not carry would vanish here and take the digest with
+		// it, which is how an honest stream came to be reported as broken.
+		h, err := ChainHashRaw(line)
 		if err != nil {
-			// Hashing our own parsed event cannot realistically fail
-			// (Marshal of a decoded Event), but stay honest if it does.
+			// The line already unmarshalled once, so this is close to
+			// impossible, but a digest we could not compute is not a digest
+			// the next line can be judged against.
 			prevKnown = false
 			continue
 		}

@@ -382,3 +382,33 @@ refactors that keep every exported signature identical, and additions to
     says so in its own doc comment, because a field called `Chain` on a struct
     called `Verified` invites exactly the wrong reading.
     *(not enforced; it is a claim this module declines to make)*
+
+18. **The chain hash is computed over the object as written, never over a
+    re-marshal of this package's model of it.** SPEC 6.5 says `C` is the JCS
+    serialization of "the event object" with `prev_hash` removed. An `Event` is
+    a MODEL of an event object, and the two stop being the same thing the
+    moment the spec registers a member this struct does not carry.
+
+    `delegation_proof` (SPEC 5.2) did exactly that on 2026-08-26, and it is a
+    top-level sibling of `data` rather than a member of it precisely because
+    `data` is the producer's free-form room and a proof is not free-form. So
+    the one decision that made the field trustworthy also walked it into the
+    one place this package was lossy: `data` is `map[string]any` and survives,
+    the top level does not.
+
+    Two call sites had the line in hand and hashed the parse of it instead.
+    `VerifyChain` reported an honestly chained stream as a break, which is our
+    own conformance tool accusing a conformant producer of tampering. Worse,
+    `NewChainedWriter` resumed a chain from the same lossy digest, so appending
+    to a file whose tail carried the member FORKED the chain on disk rather
+    than reporting anything. A false accusation is loud; a silent fork is not.
+
+    `Canonicalize` and `ChainHash` are kept and are correct where the struct is
+    the ORIGIN of the line, which is the producer's case and nothing else.
+    Their doc comments say so at length. `CanonicalizeRaw` and `ChainHashRaw`
+    take the line, and every verification and every resume goes through them.
+    *(test: `TestAChainedStreamSurvivesAMemberThisStructDoesNotModel`,
+    `TestResumingAChainHashesTheLineOnDiskAsWritten`. Nothing STOPS a future
+    call site from reaching for the struct-shaped pair; the names and the doc
+    comments are what stand between it and this bug returning.)*
+
