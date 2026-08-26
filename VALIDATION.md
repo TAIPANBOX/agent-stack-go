@@ -10,7 +10,7 @@ implementations that import it, on real files they produced".
 
 ## Its own test suite
 
-137 tests across `passport`, `event`, `chain`, `delegation` and `cmd/agent-conform`, green on
+139 tests across `passport`, `event`, `chain`, `delegation` and `cmd/agent-conform`, green on
 `go test ./... -count=1`. CI additionally gates on `gofmt`, `go vet`,
 `staticcheck`, `go test -race`, `go build`, `govulncheck`, and on the two
 claims this file used to make in prose: that the vendored schemas still match
