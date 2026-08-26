@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"math/big"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -265,11 +266,31 @@ func TestVerificationTouchesNothingOutsideTheProcess(t *testing.T) {
 			t.Fatalf("Options grew something that reaches out: %s", raw)
 		}
 	}
+
+	// And the list above is itself checked, which it was not until 2026-08-26.
+	// It was written out on purpose, so that adding a field would be a visible
+	// edit in the place somebody has to think about it, and that reasoning is
+	// kept. What it lacked is the other half: nothing made the edit REQUIRED,
+	// so a `Client` field added to Options and not added here would have left
+	// this test scanning a list that no longer described the struct, passing,
+	// for exactly the reason it exists to prevent. A hand-written list of what
+	// to check is itself unchecked until something compares it with the
+	// subject.
+	actual := make([]string, 0, reflect.TypeOf(o).NumField())
+	for i := 0; i < reflect.TypeOf(o).NumField(); i++ {
+		actual = append(actual, reflect.TypeOf(o).Field(i).Name)
+	}
+	if strings.Join(actual, ",") != strings.Join(fieldsOf(o), ",") {
+		t.Fatalf("Options has changed shape and the list this test scans has not:\n"+
+			" struct: %v\n   list: %v", actual, fieldsOf(o))
+	}
 }
 
 func fieldsOf(Options) []string {
 	// Written out rather than reflected so that adding a field is a visible
-	// edit here, which is where somebody would have to think about it.
+	// edit here, which is where somebody would have to think about it. The
+	// caller compares this against the real struct, so the edit is required
+	// rather than merely invited.
 	return []string{"Keys", "Issuer", "Audience", "Now", "Proof", "Method", "URL", "Proofs", "Revoked"}
 }
 

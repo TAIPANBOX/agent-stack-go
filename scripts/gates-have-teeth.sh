@@ -216,12 +216,31 @@ run_case "schemas-in-sync: a vendored schema drifts from the canonical" fail \
 	"$(py 'edit("cmd/agent-conform/schemas/agent-passport.schema.json", "\"type\"", "\"TYPE\"")')" \
 	"has drifted from the canonical"
 
+# invariant 19: a scenario pointing at a test that has been renamed reads as
+# held, and only this direction can see it.
+run_case "features-are-bound: a scenario names a test that is gone" fail \
+	'./scripts/features-are-bound.sh' \
+	"$(py 'edit("features/revocation.feature", "@test:TestARevokedTokenIsRefusedBySomethingThatActuallyReadTheList", "@test:TestARevokedTokenIsRefusedBySomethingThatOnceReadTheList")')" \
+	"no such test exists"
+
+run_case "features-are-bound: a scenario with no binding at all" fail \
+	'./scripts/features-are-bound.sh' \
+	"$(py 'edit("features/revocation.feature", "  Scenario: A revoked token is refused", "  Scenario: Something nobody bound\n    Given a paragraph\n\n  Scenario: A revoked token is refused")')" \
+	"binding(s)"
+
 echo
 echo "=== and what they must NOT catch ==="
 
 run_case "deps-layering: a stdlib import added to a library package" pass \
 	'./scripts/deps-layering.sh' \
 	"$(py 'edit("passport/load.go", "import (", "import (\n\t_ \"sort\"")')"
+
+# The binding is read off the `# @test:` line, so prose in a scenario body that
+# happens to name a test must not be mistaken for one. A gate that fires on a
+# correct file gets deleted by whoever is unblocking CI.
+run_case "features-are-bound: a test named in prose rather than in a binding" pass \
+	'./scripts/features-are-bound.sh' \
+	"$(py 'edit("features/revocation.feature", "  # @test:TestATokenTheListDoesNotNameIsNotRefused", "  # See also TestSomethingThatDoesNotExistAtAll below.\n  # @test:TestATokenTheListDoesNotNameIsNotRefused")')"
 
 run_case "readme-numbers: a badge-shaped number elsewhere in the README" pass \
 	'./scripts/readme-numbers.sh' \
@@ -247,6 +266,15 @@ s = open("VALIDATION.md").read()
 m = re.search(r"^\d+ tests across", s, re.M)
 assert m, "VALIDATION.md does not open with an N-tests line"
 open("VALIDATION.md","w").write(s.replace(m.group(0), "Many tests across", 1))')" \
+	"measured nothing"
+
+run_case "features-are-bound: no scenarios left to check" fail \
+	'./scripts/features-are-bound.sh' \
+	"$(py 'import subprocess
+out = subprocess.run(["git", "ls-files", "features"], capture_output=True, text=True).stdout.split()
+assert out, "no feature files tracked in this repo"
+for f in out:
+    subprocess.run(["git", "rm", "-q", f], check=True)')" \
 	"measured nothing"
 
 run_case "reproducible-build: no build command left to read" fail \
