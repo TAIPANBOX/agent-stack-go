@@ -7,7 +7,7 @@
 [![CI](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml/badge.svg)](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go)
 ![Go](https://img.shields.io/badge/go-1.26-00ADD8.svg)
-![tests](https://img.shields.io/badge/tests-137-brightgreen.svg)
+![tests](https://img.shields.io/badge/tests-139-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-v0.6.0-success.svg)
 
@@ -156,8 +156,11 @@ silently. Cross-language pinned vectors live in
 | `CreatedAt` | `created_at` | `string` | no | |
 
 `Attestation.Method` is one of `none` · `oidc` · `spiffe-svid` ·
-`enclave-key` · `mtls-cert`; `Attestation.Detail` is a method-specific
-reference (a SPIFFE ID, an issuer URL, …).
+`enclave-key` · `mtls-cert` · `dpop-key`; `Attestation.Detail` is a
+method-specific reference (a SPIFFE ID, an issuer URL, an RFC 7638 key
+thumbprint, …). The enum itself lives in the vendored schema, which
+`scripts/schemas-in-sync.sh` holds byte-identical to agent-passport's copy;
+this line is a mirror of it and the schema is what validates.
 
 | Function | Signature | Behavior |
 |---|---|---|

@@ -57,8 +57,14 @@ var (
 
 // Attestation records how an organization binds a Passport's id to a
 // workload. Method is one of: none, oidc, spiffe-svid, enclave-key,
-// mtls-cert. Detail is a method-specific reference, e.g. a SPIFFE ID or
-// issuer URL.
+// mtls-cert, dpop-key. Detail is a method-specific reference, e.g. a SPIFFE
+// ID, an issuer URL, or an RFC 7638 key thumbprint.
+//
+// The list is the SPEC 4.3 enum, and this comment is a copy of it rather than
+// the thing itself: the enum is enforced by the vendored schema, which
+// scripts/schemas-in-sync.sh holds byte-identical to agent-passport's. Method
+// is a plain string here on purpose, so a Passport attested by a method this
+// build predates still parses.
 type Attestation struct {
 	Method string `json:"method"`
 	Detail string `json:"detail,omitempty"`

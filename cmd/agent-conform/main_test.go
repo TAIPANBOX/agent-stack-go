@@ -148,6 +148,25 @@ func TestCheckFilePassportModelMissingProvider(t *testing.T) {
 	}
 }
 
+// dpop-key joined the SPEC 4.3 attestation enum in agent-passport, and this
+// tool reads the enum out of the vendored schema rather than from a list of
+// its own. That makes the test worth having in both directions: a passport
+// attested by a DPoP key must conform, and "vibes" must still not, or the
+// first half would pass just as well against a schema that had stopped
+// constraining the field at all.
+func TestCheckFilePassportDpopKeyAttestationConforms(t *testing.T) {
+	s := mustLoadSchemas(t)
+	ok := writeFile(t, "p.json", `{"schema":"taipanbox.dev/agent-passport/v0.1","id":"agent://acme.example/data/etl","owner":"team-data@acme.example","attestation":{"method":"dpop-key","detail":"NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs"}}`)
+	if !checkFile(s, ok, false) {
+		t.Error("expected an attestation method of dpop-key to conform: SPEC 4.3 lists it")
+	}
+
+	bad := writeFile(t, "p-bad.json", `{"schema":"taipanbox.dev/agent-passport/v0.1","id":"agent://acme.example/data/etl","owner":"team-data@acme.example","attestation":{"method":"vibes"}}`)
+	if checkFile(s, bad, false) {
+		t.Error("the enum accepted a method it does not list, so the half above proves nothing")
+	}
+}
+
 // ------------------------------------------------------------------
 // checkFile: event streams
 // ------------------------------------------------------------------
@@ -207,6 +226,51 @@ func TestCheckFileClaimedSubjectConformsOnlyUnderV03(t *testing.T) {
 	bad := writeFile(t, "claimed-v02.ndjson", fmt.Sprintf(claimed, "taipanbox.dev/agent-event/v0.2")+"\n")
 	if checkFile(s, bad, false) {
 		t.Error("a claimed subject stamped v0.2 conformed; v0.2's agent_id is an established identity and nothing else")
+	}
+}
+
+// delegation_proof (SPEC 5.2) is the reason a re-vendor of these schemas is
+// more than a file copy, and the shape of it is invariant 13's own story.
+// The envelope sets additionalProperties true, so an undeclared field is not
+// checked loosely, it is not looked at at all: before the schema carried this
+// object, every one of the three lines below was accepted, the malformed ones
+// included. Declaring it is what turned reading into checking.
+//
+// Absent stays valid. The field is optional and its absence means the chain
+// was NOT proved, which is a legal thing for an event to say.
+func TestCheckFileEventDelegationProofIsCheckedNotWavedThrough(t *testing.T) {
+	s := mustLoadSchemas(t)
+	const (
+		base  = `{"schema":"%s","ts":"2026-07-13T00:00:00.000Z","source":"wardryx","type":"policy_deny","agent_id":"agent://acme.example/bot","on_behalf_of":["user://acme.example/j.doe"]%s}`
+		whole = `,"delegation_proof":{"jti":"01J8Z3","jkt":"NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs","iss":"https://tokens.acme.example","exp":1786000000}`
+	)
+
+	for _, version := range []string{"taipanbox.dev/agent-event/v0.2", "taipanbox.dev/agent-event/v0.3"} {
+		cases := []struct {
+			name  string
+			tail  string
+			want  bool
+			wrong string
+		}{
+			{"complete", whole, true,
+				"a complete delegation_proof was refused"},
+			{"absent", "", true,
+				"an event with no delegation_proof was refused, and absent means not proven, which is legal"},
+			{"missing jkt", `,"delegation_proof":{"jti":"01J8Z3","iss":"https://tokens.acme.example","exp":1786000000}`, false,
+				"a delegation_proof with no jkt conformed: without the thumbprint the proof does not say who held the token"},
+			{"exp as a string", `,"delegation_proof":{"jti":"01J8Z3","jkt":"NzbL","iss":"https://tokens.acme.example","exp":"1786000000"}`, false,
+				"a delegation_proof whose exp is a string conformed"},
+			{"an extra key", whole[:len(whole)-1] + `,"token":"eyJhbGciOi.."}`, false,
+				"a delegation_proof carrying an extra key conformed: additionalProperties is false there precisely so a live credential cannot ride along in a replicated record"},
+		}
+		for _, c := range cases {
+			t.Run(version+"/"+c.name, func(t *testing.T) {
+				path := writeFile(t, "e.ndjson", fmt.Sprintf(base, version, c.tail)+"\n")
+				if got := checkFile(s, path, false); got != c.want {
+					t.Errorf("%s (conformed=%v, want %v)", c.wrong, got, c.want)
+				}
+			})
+		}
 	}
 }
 

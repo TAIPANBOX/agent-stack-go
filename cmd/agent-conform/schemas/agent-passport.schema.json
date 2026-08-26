@@ -28,7 +28,7 @@
     },
     "runtime": {
       "type": "string",
-      "description": "Free-form label for the agent runtime/framework (e.g. langgraph)."
+      "description": "The framework that drives this agent's control loop. SHOULD be one of the ids registered in SPEC.md 4.8 when one names it; stays an open string, and an unregistered value is legal. Ids are lowercase [a-z0-9-]."
     },
     "parent": {
       "type": "string",
@@ -43,7 +43,7 @@
       "properties": {
         "method": {
           "type": "string",
-          "enum": ["none", "oidc", "spiffe-svid", "enclave-key", "mtls-cert"]
+          "enum": ["none", "oidc", "spiffe-svid", "enclave-key", "mtls-cert", "dpop-key"]
         },
         "detail": {
           "type": "string",
