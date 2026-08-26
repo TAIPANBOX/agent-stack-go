@@ -12,10 +12,16 @@ Feature: A revocation list something actually consults
 
   The decision those sentences hide is what an enforcement point should do when
   the list it holds has gone old. The estate has answered "a dependency is
-  unreachable" twice, both times with an operator-chosen fail mode defaulting
-  to open, and this matches that. But a revocation list has a third state the
-  other two do not: a PDP you cannot reach tells you nothing, while a list from
-  four minutes ago still holds every revocation older than four minutes.
+  unreachable" twice, both times defaulting to open, and this one defaults to
+  closed instead. The difference is what the unreachable thing was going to
+  say: a PDP you cannot reach says nothing at all, while a revocation list you
+  cannot reach says something narrow and specific, which is that this authority
+  can no longer be confirmed to exist. Open there would also make "revoking
+  ends the right to act" conditional on one service being reachable, and would
+  do it silently.
+
+  A list from four minutes ago still holds every revocation older than four
+  minutes, so the age governs a miss and never a hit.
 
   # @test:TestARevokedDelegationIsRefusedByVerifyAfterAPollPicksItUp
   Scenario: A revoked delegation stops working, end to end
@@ -183,3 +189,11 @@ Feature: A revocation list something actually consults
     Given many goroutines installing and checking at once
     When the suite runs under the race detector
     Then nothing races, which is the shape this type exists in
+
+  # @test:TestTheDefaultFailModeRefuses
+  Scenario: An operator who never chose a fail mode gets the safe one
+    Given a deployment that wired a poller and named no fail mode
+    And no list has ever been fetched
+    When any token is checked
+    Then it is refused, because the default an operator falls into is the one
+      that breaks loudly rather than the one that breaks silently

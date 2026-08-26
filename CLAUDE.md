@@ -439,11 +439,15 @@ refactors that keep every exported signature identical, and additions to
 
     **Age decides what a MISS means and never what a HIT means.** The estate has
     answered "a dependency is unreachable" twice, both times with an
-    operator-chosen fail mode defaulting to open, and `FailMode` here is the
-    same word with the same default so the estate does not answer one question
-    two ways. What a revocation list adds is that a stale list is still mostly
-    right: a PDP you cannot reach tells you nothing, and a list from four
-    minutes ago still holds every revocation older than four minutes. So a hit
+    operator-chosen fail mode defaulting to open. `FailMode` here is the same
+    word and DELIBERATELY not the same default, and the difference is stated
+    rather than hidden: an unreachable PDP says nothing, so opening decides a
+    question no answer was coming for, while an unreachable revocation list
+    says one narrow thing, which is that this authority can no longer be
+    confirmed. Open there is also an attack primitive, since it makes revoking
+    conditional on one service being reachable and does so silently. What a
+    revocation list adds on top is that a stale list is still mostly right: one
+    from four minutes ago holds every revocation older than four minutes. So a hit
     stands at any age, because nothing un-revokes a token and discarding one we
     hold would call a token we know is dead a live one. A miss is an inference
     from the list being COMPLETE, completeness is what expires, and past
@@ -466,11 +470,11 @@ refactors that keep every exported signature identical, and additions to
     and refusing that would break any poller faster than 1 Hz.
     *(scenarios: `features/revocation.feature`, each bound to a named test, held
     by `scripts/features-are-bound.sh`, which is invariant 20. Test:
-    twenty-four in `delegation`, of which
+    twenty-five in `delegation`, of which
     `TestARevokedDelegationIsRefusedByVerifyAfterAPollPicksItUp` is the one this
     exists for, running the whole path over a real socket, and
     `TestATokenTheListDoesNotNameIsNotRefused` is its negative control, since a
-    cache that refused everything would pass it. Every one of the twenty-four was run against
+    cache that refused everything would pass it. Every one of the twenty-five was run against
     a `Check` stubbed to what a nil `Options.Revoked` does today, and sixteen
     went red there, verbatim among them `after the revocation Verify must refuse
     it, got <nil>`. Fifteen of the sixteen were run in one pass before the code
