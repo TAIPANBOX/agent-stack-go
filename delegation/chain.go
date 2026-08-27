@@ -12,13 +12,30 @@ import (
 	"fmt"
 )
 
-// MaxDepth is the longest chain this service will build or accept.
+// MaxDepth is the longest chain this service will build or accept, counted in
+// `on_behalf_of` ENTRIES.
 //
-// agent-passport SPEC section 5.1 already caps the recorded chain at 32, and
-// the two must agree: a token carrying a chain the record cannot hold would be
-// a delegation nothing could audit. It is also what stops a caller walking a
-// self-referential `act` for ever.
+// The unit is the whole of it. agent-passport SPEC section 5.1 says "Maximum
+// chain depth is 32 entries", and section 5 calls the members of
+// `on_behalf_of` entries; the subject is the first of them. So this bounds the
+// assembled chain and not the RFC 8693 actor list, and the two differ by one
+// whenever a token names a subject.
+//
+// The record and this must agree: a token carrying a chain the record cannot
+// hold is a delegation nothing could audit. It is also what stops a caller
+// walking a self-referential `act` for ever.
 const MaxDepth = 32
+
+// MaxActorsWithSubject is MaxDepth expressed in RFC 8693 actors, for a token
+// that names a subject.
+//
+// Derived rather than re-typed, because the two numbers are one decision.
+// Measured 2026-08-27: `Chain` bounded the ACTOR list at MaxDepth and then
+// prepended the subject, so a 32-actor token verified at the door and produced
+// a 33-entry chain that every validating consumer in the estate quarantined
+// ("maxItems: got 33, want 32"). A second literal is how the two halves of one
+// rule drift apart while both look right.
+const MaxActorsWithSubject = MaxDepth - 1
 
 var (
 	ErrNoSubject = errors.New("delegation: the subject token names no subject")
@@ -144,7 +161,15 @@ func Chain(sub string, act *Act) ([]string, error) {
 		return nil, err
 	}
 	if sub == "" {
+		// No human at the root. The chain is the actors alone, so the whole
+		// entry budget belongs to them and ReadAct has already applied it.
 		return actors, nil
+	}
+	// The subject is about to become the chain's first ENTRY, and SPEC 5.1
+	// counts entries. Bounding the actors alone would hand out a chain one
+	// longer than anything downstream will accept.
+	if len(actors) > MaxActorsWithSubject {
+		return nil, ErrTooDeep
 	}
 	out := make([]string, 0, len(actors)+1)
 	out = append(out, sub)
