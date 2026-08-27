@@ -525,3 +525,39 @@ refactors that keep every exported signature identical, and additions to
     scenario with no binding, a test named in PROSE which must NOT fire it, and
     every feature file removed, where it must say it measured nothing rather
     than report OK on an empty set)*
+
+21. **The door never hands out a chain the record will refuse, and the two
+    enforce that twice on purpose.** `chain.Validate` is what the RECORD
+    applies. `delegation.Chain` is what a DOOR applies to a token it has just
+    verified. `scripts/deps-layering.sh` requires `delegation` to depend on the
+    standard library alone, so it cannot call `chain.Validate`: the rules exist
+    in two places by construction, and two rules that must agree with nothing
+    comparing them is the shape this estate found nine times in two days.
+
+    Measured 2026-08-27, twice in one afternoon. The DEPTH cap: the door bounded
+    ACTORS at 32 while the record counts ENTRIES, so a subject plus 32 actors
+    verified and every record it produced was refused as 33 entries. The CYCLE
+    rule: the record has refused a repeated principal since it was written and
+    the door did not, so a chain naming one principal twice verified and its
+    trail could not be written.
+
+    The second is the trap `BuildAct` invites. Its doc example passes a whole
+    root-first chain, root included, so the root lands inside `act` while also
+    being the token's `sub`. vouchryx does not do that, measured on a live token
+    the same day, which is why it was a trap and not an outage. A documented
+    trap is not a removed one, so the door refuses the shape instead.
+    **A third rule was hidden by the gate's own alias.** Its first draft mapped
+    the record's `ErrInvalidEntry` onto the door's `ErrNoSubject`, and those are
+    not the same rule: the record refuses an entry that is not an `agent://` or
+    `user://` URI, and the door refused only an EMPTY one. So a token naming
+    `mailto:alice` verified and its trail could not be written, while the gate
+    reported agreement. **A gate that agrees over a weaker check is worse than no
+    gate, because it says the question was asked.** The door has the rule now,
+    the alias map is empty, and an alias may go back only where two packages
+    genuinely name ONE rule two ways.
+    *(gate: `scripts/door-and-record-agree.sh`, which DISCOVERS the record's
+    rules from the errors `Validate` can return rather than listing them, and
+    strips comments before reading either side. Its own first draft did not:
+    it scanned the whole file, `delegation/chain.go` names its errors in the doc
+    comments above them, and renaming a rule away left the name in prose and the
+    gate went on agreeing. Three teeth cases in `gates-have-teeth.sh`)*

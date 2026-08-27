@@ -158,7 +158,7 @@ run_case() {
 	fi
 }
 
-py() { printf 'def edit(p, a, b):\n    s = open(p).read()\n    assert a in s, "pattern not found in " + p\n    open(p, "w").write(s.replace(a, b, 1))\n%s\n' "$1"; }
+py() { printf 'def edit(p, a, b):\n    s = open(p).read()\n    assert a in s, "pattern not found in " + p\n    open(p, "w").write(s.replace(a, b, 1))\ndef edit_all(p, a, b):\n    s = open(p).read()\n    assert a in s, "pattern not found in " + p\n    open(p, "w").write(s.replace(a, b))\n%s\n' "$1"; }
 
 echo "=== faults each gate must catch ==="
 
@@ -310,6 +310,38 @@ if [ "$failures" -gt 0 ]; then
 	printf 'with nothing to catch, and stays that way until the fault it guards ships.\n'
 	exit 1
 fi
+
+# --- the door and the record agree ------------------------------------------
+
+# The fault, planted as it actually was: the record refuses a repeated
+# principal and the door does not, so the door hands out a chain whose trail
+# cannot be written.
+run_case "door-and-record: the door drops a rule the record keeps" fail \
+	"./scripts/door-and-record-agree.sh" \
+	"$(py 'edit_all("delegation/chain.go", "ErrCycle", "ErrRepeat")')" \
+	"has no"
+
+# The subject list is DISCOVERED from `Validate`, so a gate that can no longer
+# read it must say it measured nothing rather than agree over an empty set.
+run_case "door-and-record: the record's rules cannot be read" fail \
+	"./scripts/door-and-record-agree.sh" \
+	"$(py 'edit("chain/chain.go", "func Validate(chain []string) error {", "func Check(chain []string) error {")')" \
+	"measured nothing"
+
+# The rule the gate's own alias used to hide: the record refuses a non-URI
+# entry and the door must too, or the gate reports agreement over a weaker
+# check. `_ =` rather than deleting the line, so the mutation is the RULE going
+# away and not an unused import.
+run_case "door-and-record: the door stops checking the entry scheme" fail \
+	"./scripts/door-and-record-agree.sh" \
+	"$(py 'edit_all("delegation/chain.go", "ErrInvalidEntry", "ErrBadEntry")')" \
+	"has no"
+
+# And it must not fire on a rename that keeps both sides in step.
+run_case "door-and-record: a rule renamed on BOTH sides" pass \
+	"./scripts/door-and-record-agree.sh" \
+	"$(py 'edit_all("chain/chain.go", "ErrCycle", "ErrLoop")
+edit_all("delegation/chain.go", "ErrCycle", "ErrLoop")')"
 
 printf 'OK: %d cases. Every gate fails on its own fault, passes on a non-fault,\n' "$cases"
 printf '    and refuses to report success when it measured nothing.\n'
