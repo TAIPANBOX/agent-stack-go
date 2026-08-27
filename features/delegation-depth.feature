@@ -75,3 +75,12 @@ Feature: The delegation cap counts the same thing at both ends
     Given a chain mixing `user://` and `agent://` entries
     When a door assembles it
     Then it is handed out unchanged
+
+  # @test:TestTheDoorAnswersTheCrossLanguageTable
+  Scenario: One table, every door
+    Given the cross-language verdict table
+    When this door assembles each of its chains
+    Then it answers exactly what the table says, and the record accepts every
+      chain it hands out, because the rules exist in two languages with no seam
+      between them and a table each door runs is the only check a comment
+      cannot satisfy
