@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // MaxDepth is the longest chain this service will build or accept, counted in
@@ -41,6 +42,32 @@ var (
 	ErrNoSubject = errors.New("delegation: the subject token names no subject")
 	ErrTooDeep   = fmt.Errorf("delegation: the delegation chain is longer than %d", MaxDepth)
 	ErrSelf      = errors.New("delegation: an actor may not delegate to itself")
+	// ErrCycle means the assembled chain names one principal twice.
+	//
+	// SPEC 5.1: the `on_behalf_of` chain MUST be acyclic. `chain.Validate`
+	// has enforced that at the RECORD since it was written; the door did
+	// not, so this package could hand out a chain the record refuses. That
+	// is the same defect as the depth off-by-one one commit earlier, and it
+	// has the same structural cause: `scripts/deps-layering.sh` requires
+	// this package to depend on the standard library alone, so it cannot
+	// call `chain.Validate` and the rule exists twice on purpose.
+	//
+	// Two rules that must agree with nothing comparing them is the shape
+	// this estate has spent two days finding, so a gate compares them:
+	// `scripts/door-and-record-agree.sh`.
+	ErrCycle = errors.New("delegation: the delegation chain names a principal twice")
+	// ErrInvalidEntry means a principal is not an `agent://` or `user://` URI.
+	//
+	// SPEC section 5: entries are `agent://` or `user://` URIs. The record has
+	// refused anything else since `chain.Validate` was written; the door
+	// refused only an EMPTY principal, so a token naming `mailto:alice`
+	// verified and its trail could not be written.
+	//
+	// Found in this change's own NOT PROVEN section, which had recorded that
+	// `door-and-record-agree.sh` mapped the record's rule onto the door's
+	// weaker one through an alias. A gate reporting agreement where the check
+	// is weaker is worse than no gate: it says the question was asked.
+	ErrInvalidEntry = errors.New("delegation: a chain entry is not an agent:// or user:// URI")
 )
 
 // Act is the RFC 8693 section 4.1 actor claim, nested.
@@ -160,20 +187,44 @@ func Chain(sub string, act *Act) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	if sub == "" {
-		// No human at the root. The chain is the actors alone, so the whole
-		// entry budget belongs to them and ReadAct has already applied it.
-		return actors, nil
+	out := actors
+	if sub != "" {
+		// The subject is about to become the chain's first ENTRY, and SPEC 5.1
+		// counts entries. Bounding the actors alone would hand out a chain one
+		// longer than anything downstream will accept.
+		if len(actors) > MaxActorsWithSubject {
+			return nil, ErrTooDeep
+		}
+		out = make([]string, 0, len(actors)+1)
+		out = append(out, sub)
+		out = append(out, actors...)
 	}
-	// The subject is about to become the chain's first ENTRY, and SPEC 5.1
-	// counts entries. Bounding the actors alone would hand out a chain one
-	// longer than anything downstream will accept.
-	if len(actors) > MaxActorsWithSubject {
-		return nil, ErrTooDeep
+	// Acyclic, because SPEC 5.1 requires it and `chain.Validate` refuses a
+	// chain that is not. Checked HERE rather than assumed from upstream: this
+	// is what an enforcement point calls, and a door that hands out a chain the
+	// record will refuse has verified a token whose trail cannot be written.
+	// That is the quarantine the depth cap produced one commit ago, one rule
+	// over.
+	//
+	// It catches the trap `BuildAct` invites: its doc example passes a whole
+	// root-first chain, root included, so the root lands inside `act` while
+	// also being the token's `sub`, and the assembled chain names it twice.
+	// vouchryx does not do that, measured on a live token on 2026-08-27, which
+	// is why this was a trap rather than an outage.
+	seen := make(map[string]bool, len(out))
+	for _, p := range out {
+		if seen[p] {
+			return nil, ErrCycle
+		}
+		seen[p] = true
+		// The SCHEME only, deliberately, which is exactly what the record
+		// checks. A stricter pattern here would refuse chains the record
+		// accepts, which is this rule failing in the other direction.
+		if !strings.HasPrefix(p, "agent://") && !strings.HasPrefix(p, "user://") {
+			return nil, ErrInvalidEntry
+		}
 	}
-	out := make([]string, 0, len(actors)+1)
-	out = append(out, sub)
-	return append(out, actors...), nil
+	return out, nil
 }
 
 // decodeAct reads an `act` claim out of the loosely typed claim map.

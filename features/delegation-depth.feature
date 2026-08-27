@@ -46,3 +46,32 @@ Feature: The delegation cap counts the same thing at both ends
     When it carries 32 actors
     Then the chain is those 32 actors and it is accepted, because capping the
       actors at 31 unconditionally would refuse a chain the SPEC allows
+
+  # @test:TestEveryChainThisPackageHandsOutIsAcyclicBecauseTheRecordRequiresIt
+  Scenario: The door refuses what the record would refuse
+    Given a token whose subject also appears among its actors
+    When a door assembles the chain
+    Then it is refused as a cycle rather than handed out, because the record
+      has refused a repeated principal since it was written and a chain the
+      record will not hold is a token whose trail cannot be written
+
+  # @test:TestADistinctSubjectAndActorAreNotACycle
+  Scenario: An ordinary chain is not a cycle
+    Given a token whose subject and actor are different principals
+    When a door assembles the chain
+    Then it is handed out unchanged, because the check must not refuse the
+      shape every real token has
+
+  # @test:TestEveryEntryThisPackageHandsOutIsOneTheRecordAccepts
+  Scenario: A principal that is not a principal
+    Given a token naming `mailto:alice@acme.example` in its chain
+    When a door assembles the chain
+    Then it is refused, because the record accepts only `agent://` and
+      `user://` entries and a chain it will not hold is a token whose trail
+      cannot be written
+
+  # @test:TestBothSchemesTheSpecNamesAreAccepted
+  Scenario: Both schemes the spec names keep working
+    Given a chain mixing `user://` and `agent://` entries
+    When a door assembles it
+    Then it is handed out unchanged
