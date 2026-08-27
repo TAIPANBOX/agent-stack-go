@@ -7,7 +7,7 @@
 [![CI](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml/badge.svg)](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go)
 ![Go](https://img.shields.io/badge/go-1.26-00ADD8.svg)
-![tests](https://img.shields.io/badge/tests-167-brightgreen.svg)
+![tests](https://img.shields.io/badge/tests-170-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-v0.6.0-success.svg)
 
@@ -181,6 +181,15 @@ for a different kind of file batch.
 
 A nil or empty chain is valid: per the spec, it means the agent acts
 autonomously.
+
+**The cap counts entries, and the root is one of them.** SPEC 5.1 reads
+"Maximum chain depth is 32 entries", so a chain that starts with a human has
+room for 31 agents after them. Package `delegation` builds the chain out of an
+RFC 8693 token, where the subject is deliberately not an actor, so it holds the
+same number as `delegation.MaxActorsWithSubject` and derives it rather than
+retyping it. A producer that applies the 32 to the actor list alone emits a
+33-entry chain that `Validate`, both envelope schemas and `agent-conform` all
+refuse.
 
 ---
 

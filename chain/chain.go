@@ -13,9 +13,14 @@ import (
 	"regexp"
 )
 
-// MaxDepth is the maximum number of entries a delegation chain may hold,
-// per the v0.2 delegation-chain rule: a chain MUST be acyclic and MUST NOT
-// exceed 32 entries.
+// MaxDepth is the maximum number of entries a delegation chain may hold, per
+// agent-passport SPEC section 5.1: "Maximum chain depth is 32 entries".
+//
+// The unit is entries of `on_behalf_of`, and section 5 calls its members
+// entries: the root, usually a human, is the first of them. A producer that
+// reads this as a bound on the RFC 8693 actor list allows one more, because
+// the mapping is `on_behalf_of = [sub] + reverse(act)`. Package delegation
+// carries that arithmetic in MaxActorsWithSubject.
 const MaxDepth = 32
 
 // entryPattern matches a well-formed chain entry scheme: agent:// or

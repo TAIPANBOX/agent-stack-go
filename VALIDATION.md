@@ -10,7 +10,7 @@ implementations that import it, on real files they produced".
 
 ## Its own test suite
 
-167 tests across `passport`, `event`, `chain`, `delegation` and `cmd/agent-conform`, green on
+170 tests across `passport`, `event`, `chain`, `delegation` and `cmd/agent-conform`, green on
 `go test ./... -count=1`. CI additionally gates on `gofmt`, `go vet`,
 `staticcheck`, `go test -race`, `go build`, `govulncheck`, and on the two
 claims this file used to make in prose: that the vendored schemas still match
@@ -46,6 +46,22 @@ both are the opposite of the convenient choice:
   reports success on the files it never looked at.
 - **Exit 0 or exit 1, and nothing in between.** It is meant to sit in CI, so
   the interface is an exit code, not a report somebody has to read.
+
+## The delegation cap, both ends of it
+
+`delegation.Verify` refuses a token whose subject and actors would assemble
+into more than `chain.MaxDepth` entries. Before 2026-08-27 it bounded the
+actors alone, so a 32-actor token verified and produced a 33-entry
+`on_behalf_of` that `chain.Validate`, both vendored envelope schemas and
+`agent-conform -chain` all refuse. Held now by a cross-package test that sweeps
+every actor count from none to four past the cap, with a subject and without
+one, and requires that anything `delegation` hands out is something `chain`
+accepts.
+
+**This is an enforcement change.** A door that accepted such a token now
+answers `ErrMalformed`. What it refuses is exactly what was being quarantined
+downstream, so nothing that worked end to end stops working, but the set of
+tokens that verify is smaller than it was.
 
 ## In a live cluster
 
