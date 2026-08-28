@@ -1,0 +1,70 @@
+{
+  "$comment": [
+    "What this repository contributes to a running stack, and what a check may",
+    "believe about it. `checked` is proved against this repository by",
+    "internal/manifest/manifest_test.go in this repository's own CI; `declared`",
+    "is a statement nobody can verify and carries its own `why`.",
+    "",
+    "THE PRODUCT HERE IS A MODULE, AND THE BINARY IS THE SMALLER HALF. Nine",
+    "sibling repositories import github.com/TAIPANBOX/agent-stack-go, which is",
+    "why C1 in estate-gates watches for a version lag and why `runs: []` is",
+    "correct: no deployment installs this, every consumer compiles it in.",
+    "",
+    "SO THE ONE THING THIS REPOSITORY SHIPS AS AN ARTIFACT IS agent-conform, AND",
+    "ITS CLAIM IS REPRODUCIBILITY. It decides whether somebody else's payload",
+    "conforms, and a verdict is worth what its checker is worth: the person",
+    "receiving the verdict has to be able to rebuild the checker and get the same",
+    "bytes. Three flags hold that, CGO_ENABLED=0, -trimpath and -s -w, and they",
+    "live in TWO files. ci.yml's own comment says losing one breaks it in",
+    "silence, so the check below asserts all three in both places rather than",
+    "trusting either.",
+    "",
+    "THE SCHEMAS ARE A COPY AND THE COPY IS THE POINT. cmd/agent-conform/schemas",
+    "vendors files TAIPANBOX/agent-passport owns, so the tool is one static",
+    "binary and the tests run offline. A copy with nothing comparing it drifts:",
+    "on 2026-08-05 the vendored Passport schema was missing SPEC 4.4 and 4.5",
+    "entirely, so agent-conform read a mode the spec does not have and printed",
+    "OK. schemas-in-sync.sh is what compares them now; this manifest records that",
+    "the copy exists and how many files it is, so a schema quietly disappearing",
+    "from it is visible here too."
+  ],
+  "schema": "taipanbox.dev/components/v1",
+  "repo": "TAIPANBOX/agent-stack-go",
+  "module": "github.com/TAIPANBOX/agent-stack-go",
+  "components": [
+    {
+      "name": "agent-conform",
+      "class": "tool",
+      "checked": {
+        "package": "github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform",
+        "env": {},
+        "reads_no_environment": true,
+        "reproducible_build_flags": [
+          "CGO_ENABLED=0",
+          "-trimpath",
+          "-s -w"
+        ],
+        "flags_declared_in": [
+          ".github/workflows/ci.yml",
+          ".github/workflows/release.yml"
+        ],
+        "vendored_schemas": [
+          "agent-event.schema.json",
+          "agent-event.v0.2.schema.json",
+          "agent-event.v0.3.schema.json",
+          "agent-passport.schema.json"
+        ]
+      },
+      "declared": {
+        "it_is_a_release_artifact_not_a_deployed_component": {
+          "value": "agent-conform_${GOOS}_${GOARCH}",
+          "why": "release.yml builds it for several platforms so somebody outside this estate can check whether their service conforms. No launcher installs it, which is why estate.json's `runs` is empty and right."
+        },
+        "the_module_is_what_the_estate_actually_consumes": {
+          "value": "github.com/TAIPANBOX/agent-stack-go",
+          "why": "Nine sibling repositories import it. That is a dependency rather than an installation, so it is not a component here; C1 in estate-gates is what watches consumers for a version lag."
+        }
+      }
+    }
+  ]
+}
