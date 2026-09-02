@@ -19,12 +19,22 @@ name: release
 on:
   push:
     tags: ["v*"]
+  # The build job runs on a pull request that changes THIS file, and nothing
+  # else does: the release job stays off (see its `if`), so a pull request
+  # builds the whole matrix and publishes nothing. Added 2026-09-02 after
+  # tokenfuse's v0.4.2 failed on both Linux runners the first time its own
+  # tag-only release.yml ever reached its musl leg: a workflow gated on
+  # `push: tags: v*` and nothing else is tested by exactly one event in its
+  # whole life, and that event is the one where a mistake is public.
+  pull_request:
+    paths: [".github/workflows/release.yml"]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
+  build:
+    name: build matrix
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -76,6 +86,31 @@ jobs:
           done
           (cd dist && sha256sum * > SHA256SUMS)
           cat dist/SHA256SUMS
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  release:
+    name: create release
+    needs: build
+    # Never on a pull request: this job publishes a GitHub release, and the
+    # build job above has already proven the matrix on this event. Guarding it
+    # off is what stops the pull_request trigger above from shipping a release
+    # from a fork's pull request.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
 
       - name: create release
         env:
