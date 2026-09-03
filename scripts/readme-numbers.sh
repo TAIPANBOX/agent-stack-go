@@ -78,6 +78,27 @@ else
 	fi
 fi
 
+# The status badge names a tag, and the newest reachable tag is the only
+# honest source for what that tag should say. A shallow clone with no tags
+# fetched looks exactly like a repository with no releases, so this half
+# refuses rather than reporting OK on a comparison it never made.
+newest_tag=$(git tag --list 'v*' | sort -V | tail -1)
+if [ -z "$newest_tag" ]; then
+	note "no tag is reachable at all (this happens on a shallow checkout that never fetched tags), so this check measured nothing about the version badge and cannot say it is right"
+	exit 1
+fi
+
+stated_version=$(grep -oE 'badge/status-v[0-9]+\.[0-9]+\.[0-9]+-' "$readme" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+if [ -z "$stated_version" ]; then
+	note "the README carries no status/version badge, so this check measured nothing about the version"
+	note "add: ![Status](https://img.shields.io/badge/status-${newest_tag}-success.svg)"
+	exit 1
+fi
+
+if [ "$stated_version" != "$newest_tag" ]; then
+	note "the status badge says $stated_version and the newest tag is $newest_tag. On the day a new tag is cut the badge legitimately lags until README.md is bumped by hand, same stance as this org's estate-gates C1 invariant: that lag is expected and is not what this failure is about, the fix is to bump the README, never to loosen this gate"
+fi
+
 if [ "$problems" -gt 0 ]; then
 	printf '\n%d number(s) this repository states about itself that it does not support.\n' "$problems"
 	printf 'Update them in the same commit as the tests. That is the whole point: the\n'
