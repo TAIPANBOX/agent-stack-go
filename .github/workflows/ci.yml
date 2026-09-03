@@ -9,7 +9,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0, because readme-numbers.sh now compares the README's
+      # status badge against `git tag --list 'v*' | sort -V | tail -1`, and
+      # actions/checkout's default shallow clone fetches no tags at all. A
+      # shallow checkout would make the newest-tag lookup come back empty,
+      # which is exactly the "measured nothing" case the gate refuses on
+      # rather than silently reporting OK.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v7
         with:
           go-version: "1.27.0"
@@ -64,9 +72,15 @@ jobs:
   schemas:
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 for the same reason as in `build`: this job runs
+      # gates-have-teeth.sh, which calls readme-numbers.sh several times as
+      # part of its own cases, and a shallow checkout here would make every
+      # one of those calls see no tag at all rather than the fault the case
+      # is actually about.
       - uses: actions/checkout@v7
         with:
           path: agent-stack-go
+          fetch-depth: 0
       - uses: actions/checkout@v7
         with:
           repository: TAIPANBOX/agent-passport

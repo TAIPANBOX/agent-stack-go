@@ -292,13 +292,15 @@ had one, is worse than an absent invariant.
     harness version differ only in how many layers of quoting sit between the
     text and python. So every mutation asserts it applied: a case whose edit
     changed nothing is a failure, not a pass.
-    *(gate: `scripts/gates-have-teeth.sh`, 16 cases: seven real faults each gate
-    must catch, four non-faults they must not, and five subjects taken away
+    *(gate: `scripts/gates-have-teeth.sh`, 18 cases: eight real faults each gate
+    must catch, four non-faults they must not, and six subjects taken away
     entirely, where the gate must say it measured nothing rather than report
     OK. It said 12 until `features-are-bound.sh` arrived on 2026-08-26 with four
-    cases of its own, which is invariant 12's shape inside the file that holds
-    it: the count is updated in the commit that changes it, because somebody
-    looks. `./scripts/gates-have-teeth.sh | grep -c '^ok '` is the command. The third non-fault arrived on 2026-08-26 and is the first here that
+    cases of its own, and it said 16 until the version-badge half of
+    `readme-numbers.sh` arrived on 2026-09-03 with two cases of its own, which is
+    invariant 12's shape inside the file that holds it: the count is updated in
+    the commit that changes it, because somebody looks.
+    `./scripts/gates-have-teeth.sh | grep -c '^ok '` is the command. The third non-fault arrived on 2026-08-26 and is the first here that
     runs a gate under a HOOK'S ENVIRONMENT rather than in a plain shell,
     because the fault it pins exists only there: `schemas-in-sync.sh` reads
     another repository, git exports GIT_DIR into a hook, and `git -C` keeps it. It runs in the `schemas` CI job rather than `build`, because one of the

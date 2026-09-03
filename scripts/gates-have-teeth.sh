@@ -179,6 +179,17 @@ assert m, "no test badge in README.md"
 open("README.md","w").write(s.replace(m.group(0), "badge/tests-%d-" % (int(m.group(1))+7), 1))')" \
 	"the badge says"
 
+# The status badge names a tag, and the tag that matters is the newest
+# reachable one, not whatever was true when the badge was last hand-edited.
+run_case "readme-numbers: a stale version badge" fail \
+	'./scripts/readme-numbers.sh' \
+	"$(py 'import re
+s = open("README.md").read()
+m = re.search(r"badge/status-v[0-9]+\.[0-9]+\.[0-9]+-", s)
+assert m, "no status badge in README.md"
+open("README.md","w").write(s.replace(m.group(0), "badge/status-v0.0.1-", 1))')" \
+	"the status badge says"
+
 # invariant 11: the three flags must be in the workflow, not only in the script.
 run_case "reproducible-build: the workflow loses a build flag" fail \
 	'./scripts/reproducible-build.sh' \
@@ -258,6 +269,17 @@ m = re.search(r"badge/tests-\d+-", s)
 assert m, "no test badge in README.md"
 open("README.md","w").write(s.replace(m.group(0), "badge/nothing-", 1))')" \
 	"nothing to compare against"
+
+# The version-badge half must say it measured nothing too, and say so in the
+# same words, rather than silently reporting OK on a comparison it never made.
+run_case "readme-numbers: no version badge left to compare against" fail \
+	'./scripts/readme-numbers.sh' \
+	"$(py 'import re
+s = open("README.md").read()
+m = re.search(r"!\[Status\]\(https://img\.shields\.io/badge/status-v[0-9]+\.[0-9]+\.[0-9]+-success\.svg\)\n", s)
+assert m, "no status badge line in README.md"
+open("README.md","w").write(s.replace(m.group(0), "", 1))')" \
+	"measured nothing"
 
 run_case "readme-numbers: VALIDATION.md stops stating the same figure" fail \
 	'./scripts/readme-numbers.sh' \
