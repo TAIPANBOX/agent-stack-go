@@ -55,19 +55,23 @@ func Surface(root string) ([]string, error) {
 }
 
 func surface(dir, pkg string) ([]string, error) {
-	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, dir, func(fi os.FileInfo) bool {
-		return !strings.HasSuffix(fi.Name(), "_test.go")
-	}, parser.ParseComments)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
+	fset := token.NewFileSet()
 	var lines []string
-	for _, p := range pkgs {
-		for _, f := range p.Files {
-			for _, d := range f.Decls {
-				lines = append(lines, declLines(fset, pkg, d)...)
-			}
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, filepath.Join(dir, name), nil, parser.ParseComments)
+		if err != nil {
+			return nil, err
+		}
+		for _, d := range f.Decls {
+			lines = append(lines, declLines(fset, pkg, d)...)
 		}
 	}
 	return lines, nil
