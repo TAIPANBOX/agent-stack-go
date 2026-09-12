@@ -19,8 +19,9 @@ the advisory unless you prefer otherwise.
 
 ## Supported versions
 
-Only the latest tagged `vX.Y.Z` and `main` are supported. Fixes land on
-`main`, get a new tag, and are not backported to older tags.
+The newest minor gets every fix; the previous minor gets security-relevant
+fixes for 90 days after the newer one is tagged (SPEC 10 / the support
+sentence decided 2026-09-12).
 
 ## Verifying a build
 
