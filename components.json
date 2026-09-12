@@ -52,7 +52,9 @@
           "agent-event.schema.json",
           "agent-event.v0.2.schema.json",
           "agent-event.v0.3.schema.json",
-          "agent-passport.schema.json"
+          "agent-event.v1.0.schema.json",
+          "agent-passport.schema.json",
+          "agent-passport.v1.0.schema.json"
         ]
       },
       "declared": {

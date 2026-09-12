@@ -42,10 +42,19 @@ import (
 // and MAY refuse v0.3. Refusing is the correct answer for a reader that has not
 // decided what a self-declaration means to it, and this package deliberately
 // does not decide that for anybody (see Unmarshal).
+//
+// SchemaV10 (SPEC 6.4.1, 2026-09-12) is v0.3's shape with the version string
+// changed, and it is the successor to v0.2 for ordinary traffic. A consumer
+// MUST accept v0.1, v0.2 and v1.0; the refusal it owes moves from the version
+// to the subject: a consumer that has not decided what a claimed subject means
+// refuses and counts an event whose agent_id carries the `claimed:` marker,
+// whatever version stamped it. A producer stamps v1.0 on every event from the
+// release in which it adopts 1.0, claimed subject or not.
 const (
 	SchemaV02 = "taipanbox.dev/agent-event/v0.2"
 	SchemaV01 = "taipanbox.dev/agent-event/v0.1"
 	SchemaV03 = "taipanbox.dev/agent-event/v0.3"
+	SchemaV10 = "taipanbox.dev/agent-event/v1.0"
 )
 
 // Severity values for the Event.Severity field.

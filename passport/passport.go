@@ -17,14 +17,31 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 )
 
-// RequiredSchema is the only Passport schema version this package
-// understands. The passport schema stays v0.1: bumping it would break every
-// existing Passport document in the field.
-const RequiredSchema = "taipanbox.dev/agent-passport/v0.1"
+// Passport schema versions this package accepts (agent-passport SPEC 6.4.1).
+//
+// SchemaV10 is v0.1 with the document's top level closed: a key the schema
+// never named does not validate, so Parse refuses one under v1.0 with
+// ErrUnknownField. SchemaV01 stays accepted, and keeps tolerating such a key,
+// by decision: every document written against it was valid when written. A
+// consumer MUST accept both; a producer moves at its own release.
+const (
+	SchemaV01 = "taipanbox.dev/agent-passport/v0.1"
+	SchemaV10 = "taipanbox.dev/agent-passport/v1.0"
+)
+
+// RequiredSchema names v0.1 and is kept for callers that pinned it before 1.0.
+// It is no longer the only version Parse accepts; see AcceptedSchemas.
+const RequiredSchema = SchemaV01
+
+// AcceptedSchemas lists the Passport schema strings Parse accepts, oldest
+// first. The slice is fresh on every call, so a caller cannot widen it.
+func AcceptedSchemas() []string { return []string{SchemaV01, SchemaV10} }
 
 // maxURIBytes is the maximum length, in bytes, of an agent:// or user://
 // URI (agent-passport SPEC §3.1).
@@ -44,8 +61,11 @@ var (
 	// ErrInvalidJSON means the input was not well-formed JSON.
 	ErrInvalidJSON = errors.New("passport: invalid json")
 	// ErrUnsupportedSchema means the document's schema field was missing or
-	// was not RequiredSchema.
+	// named a version this package does not carry (see AcceptedSchemas).
 	ErrUnsupportedSchema = errors.New("passport: unsupported schema")
+	// ErrUnknownField means a v1.0 document carried a top-level key the
+	// schema never named (SPEC 6.4.1). Under v0.1 the same key is tolerated.
+	ErrUnknownField = errors.New("passport: field the schema never named")
 	// ErrMissingID means the document had no id field.
 	ErrMissingID = errors.New("passport: missing required field: id")
 	// ErrMissingOwner means the document had no owner field.
@@ -178,16 +198,23 @@ func validateURI(s string, pattern *regexp.Regexp) error {
 
 // Parse decodes one Passport JSON document. It returns an error, wrapping
 // one of this package's sentinel errors, when the document isn't valid
-// JSON, its schema isn't RequiredSchema, either of the required fields
-// beyond schema (id, owner) is missing, or id is not a well-formed
-// agent:// URI. Every other field is optional.
+// JSON, its schema is not one of AcceptedSchemas, either of the required
+// fields beyond schema (id, owner) is missing, id is not a well-formed
+// agent:// URI, or, under v1.0 only, a top-level key appears that the schema
+// never named. Every other field is optional.
 func Parse(data []byte) (Passport, error) {
 	var p Passport
 	if err := json.Unmarshal(data, &p); err != nil {
 		return Passport{}, fmt.Errorf("%w: %v", ErrInvalidJSON, err)
 	}
-	if p.Schema != RequiredSchema {
-		return Passport{}, fmt.Errorf("%w: got %q, want %q", ErrUnsupportedSchema, p.Schema, RequiredSchema)
+	switch p.Schema {
+	case SchemaV01:
+	case SchemaV10:
+		if err := refuseUnknownTopLevelKeys(data); err != nil {
+			return Passport{}, err
+		}
+	default:
+		return Passport{}, fmt.Errorf("%w: got %q, want one of %q", ErrUnsupportedSchema, p.Schema, AcceptedSchemas())
 	}
 	if p.ID == "" {
 		return Passport{}, ErrMissingID
@@ -199,4 +226,40 @@ func Parse(data []byte) (Passport, error) {
 		return Passport{}, fmt.Errorf("passport: invalid id: %w", err)
 	}
 	return p, nil
+}
+
+// knownTopLevelKeys are the JSON names Passport declares, read from the
+// struct's own tags so that adding a field here is the only edit a new key
+// needs; a hand-kept second list is the drift this module has met before.
+var knownTopLevelKeys = func() map[string]bool {
+	keys := map[string]bool{}
+	t := reflect.TypeFor[Passport]()
+	for i := 0; i < t.NumField(); i++ {
+		tag := t.Field(i).Tag.Get("json")
+		if name, _, _ := strings.Cut(tag, ","); name != "" && name != "-" {
+			keys[name] = true
+		}
+	}
+	return keys
+}()
+
+// refuseUnknownTopLevelKeys is SPEC 6.4.1's one narrowing: under v1.0 the
+// document's top level is closed. Nested objects are not walked, exactly as
+// the schema's additionalProperties is set at the top level and nowhere else.
+func refuseUnknownTopLevelKeys(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return fmt.Errorf("%w: %v", ErrInvalidJSON, err)
+	}
+	var unknown []string
+	for k := range raw {
+		if !knownTopLevelKeys[k] {
+			unknown = append(unknown, k)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	sort.Strings(unknown)
+	return fmt.Errorf("%w: %q under %s", ErrUnknownField, unknown, SchemaV10)
 }
