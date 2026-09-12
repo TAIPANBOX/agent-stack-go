@@ -1,0 +1,143 @@
+chain: const MaxDepth = 32
+chain: func Append(chain []string, principal string) ([]string, error)
+chain: func Validate(chain []string) error
+chain: var ErrCycle = errors.New("chain: cycle detected")
+chain: var ErrInvalidEntry = errors.New("chain: invalid entry")
+chain: var ErrTooDeep = errors.New("chain: exceeds max depth")
+delegation: const BasisAbsent
+delegation: const BasisListed Basis = iota
+delegation: const BasisNever
+delegation: const BasisStale
+delegation: const DefaultRevocationMaxAge = time.Minute
+delegation: const FailClosed FailMode = iota
+delegation: const FailOpen
+delegation: const MaxActorsWithSubject = MaxDepth - 1
+delegation: const MaxDepth = 32
+delegation: const MaxSnapshotBytes = 4 << 20
+delegation: const Window = 60 * time.Second
+delegation: func (b Basis) IsFallback() bool
+delegation: func (b Basis) String() string
+delegation: func (f FailMode) String() string
+delegation: func (r *Revocations) Age(now time.Time) (time.Duration, bool)
+delegation: func (r *Revocations) AsOf() (int64, bool)
+delegation: func (r *Revocations) Check(jti, subject string, issuedAt int64, now time.Time) Answer
+delegation: func (r *Revocations) Hook(now time.Time, observe func(Answer)) func(jti, subject string, issuedAt int64) bool
+delegation: func (r *Revocations) Install(s Snapshot, now time.Time) error
+delegation: func (r *Revocations) Refresh(ctx context.Context, c *http.Client, url string, now time.Time) error
+delegation: func (r *Revocations) RejectedBackwards() uint64
+delegation: func (r *Revocations) SetMaxAge(d time.Duration)
+delegation: func (s Set) Find(kid string) (JWK, bool)
+delegation: func (v *Verifier) Check(proof, method, url string, now time.Time) (string, error)
+delegation: func BuildAct(chain []string) (*Act, error)
+delegation: func Chain(sub string, act *Act) ([]string, error)
+delegation: func Extend(chain []string, actor string) ([]string, error)
+delegation: func Fetch(ctx context.Context, c *http.Client, url string) (Snapshot, error)
+delegation: func FromPublic(pub *ecdsa.PublicKey, kid string) JWK
+delegation: func NewRevocations(maxAge time.Duration, failMode FailMode) *Revocations
+delegation: func NewVerifier() *Verifier
+delegation: func ParseSnapshot(raw []byte) (Snapshot, error)
+delegation: func ReadAct(act *Act) ([]string, error)
+delegation: func SignES256(key *ecdsa.PrivateKey, kid string, claims map[string]any) (string, error)
+delegation: func Thumbprint(j JWK) (string, error)
+delegation: func Verify(token string, o Options) (Verified, error)
+delegation: func VerifyToken(token string, set Set) (map[string]any, error)
+delegation: func VerifyWith(token string, key JWK) (map[string]any, error)
+delegation: type Act struct { Sub	string		`json:"sub"` Act	*Act		`json:"act,omitempty"` }
+delegation: type Answer struct { Revoked	bool Basis	Basis   Age	time.Duration }
+delegation: type Basis int
+delegation: type FailMode int
+delegation: type JWK struct { Kty	string		`json:"kty"` Crv	string		`json:"crv,omitempty"` X	string		`json:"x,omitempty"` Y	string		`json:"y,omitempty"` N	string		`json:"n,omitempty"` E	string		`json:"e,omitempty"` Kid	string		`json:"kid,omitempty"` Use	string		`json:"use,omitempty"` Alg	string		`json:"alg,omitempty"` }
+delegation: type Options struct {  Keys	Set   Issuer	string    Audience	string  Now	time.Time           Proof	string Method, URL	string    Proofs	*Verifier     Revoked	func(jti, subject string, issuedAt int64) bool }
+delegation: type Revocation struct {  JTI	string		`json:"jti,omitempty"`  Subject	string		`json:"subject,omitempty"`  IssuedBefore	int64		`json:"issued_before,omitempty"`        Expires	int64		`json:"expires,omitempty"` }
+delegation: type Revocations struct { maxAge	time.Duration failMode	FailMode  mu	sync.RWMutex held	*Snapshot     fetchedAt	time.Time rejectedBackwards	uint64 }
+delegation: type Set struct { Keys []JWK `json:"keys"` }
+delegation: type Snapshot struct { Revocations	[]Revocation		`json:"revocations"` AsOf	int64		`json:"as_of"` }
+delegation: type Verified struct {  Subject	string          Actors	[]string   Chain	[]string  JKT	string  JTI	string IssuedAt	int64 ExpiresAt	int64  Scope	string }
+delegation: type Verifier struct { mu	sync.Mutex seen	map[string]time.Time }
+delegation: var ErrAlgNotAllowed = errors.New("delegation: that algorithm is not permitted for this key type")
+delegation: var ErrAudience = errors.New("delegation: the token was not minted for this audience")
+delegation: var ErrBadSignature = errors.New("delegation: the signature did not verify")
+delegation: var ErrBinding = errors.New("delegation: the proof is not for this request")
+delegation: var ErrCursorWentBackwards = errors.New("delegation: the revocation list describes an earlier moment than the one held")
+delegation: var ErrCycle = errors.New("delegation: the delegation chain names a principal twice")
+delegation: var ErrExpired = errors.New("delegation: the token has expired")
+delegation: var ErrInvalidEntry = errors.New("delegation: a chain entry is not an agent:
+delegation: var ErrIssuer = errors.New("delegation: the token was not issued by the expected issuer")
+delegation: var ErrMalformed = errors.New("delegation: the token is not a delegation token")
+delegation: var ErrNoCursor = errors.New("delegation: the revocation list carries no as_of cursor")
+delegation: var ErrNoKey = errors.New("delegation: the proof carries no jwk to bind to")
+delegation: var ErrNoKid = errors.New("delegation: the token carries no kid, so no key can be matched to it")
+delegation: var ErrNoProof = errors.New("delegation: a sender-constrained token was presented with no proof")
+delegation: var ErrNoSubject = errors.New("delegation: the subject token names no subject")
+delegation: var ErrNotBound = errors.New("delegation: the token carries no cnf.jkt, so it is a bearer token")
+delegation: var ErrPrivate = errors.New("delegation: the proof's jwk carries a private member")
+delegation: var ErrReplay = errors.New("delegation: this proof has been presented before")
+delegation: var ErrRevoked = errors.New("delegation: this delegation has been revoked")
+delegation: var ErrSelf = errors.New("delegation: an actor may not delegate to itself")
+delegation: var ErrSignature = errors.New("delegation: the proof is not signed by the key it carries")
+delegation: var ErrStale = errors.New("delegation: the proof is outside the freshness window")
+delegation: var ErrTooDeep = fmt.Errorf("delegation: the delegation chain is longer than %d", MaxDepth)
+delegation: var ErrUnknownKid = errors.New("delegation: no key in the set has that kid")
+delegation: var ErrWrongKey = errors.New("delegation: the presenter does not hold the key this token is bound to")
+event: const ChainHashPrefix = "sha256:"
+event: const SchemaV01 = "taipanbox.dev/agent-event/v0.1"
+event: const SchemaV02 = "taipanbox.dev/agent-event/v0.2"
+event: const SchemaV03 = "taipanbox.dev/agent-event/v0.3"
+event: const SchemaV10 = "taipanbox.dev/agent-event/v1.0"
+event: const SeverityCritical = "critical"
+event: const SeverityHigh = "high"
+event: const SeverityInfo = "info"
+event: const SeverityLow = "low"
+event: const SeverityMedium = "medium"
+event: func (cw *ChainedWriter) Close() error
+event: func (cw *ChainedWriter) ResumedFrom() string
+event: func (cw *ChainedWriter) Write(e Event) error
+event: func (r ChainReport) Ok() bool
+event: func (w *Writer) Close() error
+event: func (w *Writer) Write(e Event) error
+event: func Canonicalize(e Event) ([]byte, error)
+event: func CanonicalizeRaw(line []byte) ([]byte, error)
+event: func ChainHash(e Event) (string, error)
+event: func ChainHashRaw(line []byte) (string, error)
+event: func Marshal(e Event) ([]byte, error)
+event: func NewChainedWriter(path string) (*ChainedWriter, error)
+event: func NewWriter(path string) (*Writer, error)
+event: func ReadFile(path string) ([]Event, error)
+event: func Scan(r io.Reader, fn func(Event) error) (ScanResult, error)
+event: func Unmarshal(data []byte) (Event, error)
+event: func VerifyChain(r io.Reader) (ChainReport, error)
+event: type ChainBreak struct {  Line	int  Expected	string  Found	string }
+event: type ChainReport struct {    Lines	int Malformed	int  Chained	int   HeadLines	[]int   Unverifiable	[]int  Breaks	[]ChainBreak }
+event: type ChainedWriter struct { mu	sync.Mutex file	*os.File  next	string  resumedFrom	string }
+event: type Event struct { Schema	string		`json:"schema"` TS	string		`json:"ts"` Source	string		`json:"source"` Type	string		`json:"type"` AgentID	string		`json:"agent_id"` Severity	string		`json:"severity,omitempty"` RunID	string		`json:"run_id,omitempty"` OnBehalfOf	[]string		`json:"on_behalf_of,omitempty"` Data	map[string]any		`json:"data,omitempty"` PrevHash	string		`json:"prev_hash,omitempty"` }
+event: type ScanResult struct { Lines	int Malformed	int }
+event: type Writer struct { mu	sync.Mutex file	*os.File }
+event: var ErrInvalidJSON = errors.New("event: invalid json")
+event: var ErrMissingAgentID = errors.New("event: missing required field: agent_id")
+event: var ErrMissingSchema = errors.New("event: missing required field: schema")
+event: var ErrMissingSource = errors.New("event: missing required field: source")
+event: var ErrMissingTS = errors.New("event: missing required field: ts")
+event: var ErrMissingType = errors.New("event: missing required field: type")
+passport: const ClaimedPrefix = "claimed:"
+passport: const RequiredSchema = SchemaV01
+passport: const SchemaV01 = "taipanbox.dev/agent-passport/v0.1"
+passport: const SchemaV10 = "taipanbox.dev/agent-passport/v1.0"
+passport: func AcceptedSchemas() []string
+passport: func ClaimedInner(s string) (string, bool)
+passport: func IsClaimedSubject(s string) bool
+passport: func LoadDir[T any](dirOrGlob string, parse func([]byte) (T, error), id func(T) string) ([]T, Report, error)
+passport: func Parse(data []byte) (Passport, error)
+passport: func ValidateAgentURI(s string) error
+passport: func ValidateSubject(s string) error
+passport: func ValidateUserURI(s string) error
+passport: type Attestation struct { Method	string		`json:"method"` Detail	string		`json:"detail,omitempty"` }
+passport: type FsScope struct { Path	string		`json:"path"` Mode	string		`json:"mode"` }
+passport: type Model struct { Provider	string		`json:"provider"` Model	string		`json:"model,omitempty"` Endpoint	string		`json:"endpoint,omitempty"` }
+passport: type Passport struct { Schema	string		`json:"schema"` ID	string		`json:"id"` Owner	string		`json:"owner"` DisplayName	string		`json:"display_name,omitempty"` Runtime	string		`json:"runtime,omitempty"` Parent	string		`json:"parent,omitempty"` Attestation	*Attestation		`json:"attestation,omitempty"` Filesystem	[]FsScope		`json:"filesystem,omitempty"` Models	[]Model		`json:"models,omitempty"` Labels	map[string]string		`json:"labels,omitempty"` CreatedAt	string		`json:"created_at,omitempty"` }
+passport: type Report struct { Files	int Malformed	int }
+passport: var ErrInvalidJSON = errors.New("passport: invalid json")
+passport: var ErrInvalidURI = errors.New("passport: invalid uri")
+passport: var ErrMissingID = errors.New("passport: missing required field: id")
+passport: var ErrMissingOwner = errors.New("passport: missing required field: owner")
+passport: var ErrUnknownField = errors.New("passport: field the schema never named")
+passport: var ErrUnsupportedSchema = errors.New("passport: unsupported schema")

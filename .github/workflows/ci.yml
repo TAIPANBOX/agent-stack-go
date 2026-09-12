@@ -40,6 +40,13 @@ jobs:
       - name: library packages stay dependency-clean
         run: ./scripts/deps-layering.sh
 
+      # The exported surface of chain, delegation, event and passport is what
+      # 1.0 promised, one declaration per line in api/surface.txt. A line lost
+      # or changed is a new major and fails here; a line added fails until the
+      # file records it in the same commit.
+      - name: the exported surface is what 1.0 promised
+        run: ./scripts/api-surface.sh
+
       # Every scenario in features/ names a test that exists, and every
       # scenario names one at all. A scenario bound to nothing describes what
       # somebody wanted; a binding pointing at a renamed test reads as held.

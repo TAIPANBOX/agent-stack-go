@@ -107,6 +107,7 @@ staticcheck ./...
 go test -race ./...
 go build ./...
 ./scripts/deps-layering.sh
+./scripts/api-surface.sh
 ./scripts/features-are-bound.sh
 ./scripts/schemas-in-sync.sh   # needs TAIPANBOX/agent-passport checked out beside this repo
 ./scripts/readme-numbers.sh
@@ -147,7 +148,14 @@ had one, is worse than an absent invariant.
    *(gate: `scripts/deps-layering.sh`)*
 2. **A change to an exported type, constant, or error value is a version
    decision, not an edit.** Consumers pin by tag. Additive and backward
-   compatible, or ask the user first. *(not enforced)*
+   compatible, or ask the user first. Since 1.0 (2026-09-12) the surface is a
+   file: `api/surface.txt` lists every exported declaration of `chain`,
+   `delegation`, `event` and `passport`, read out of the source by
+   `internal/apisurface`. *(gate: `scripts/api-surface.sh`: a line lost or
+   changed fails unless the gate is run with `--major`, a line added fails
+   until the file records it, and no file is measured nothing; four cases in
+   `gates-have-teeth.sh`. What stays judgement is whether an addition is the
+   right one; that a signature moved is no longer a matter of noticing)*
 3. **This module is the single source of the wire types.** If a consumer needs
    a type that is nearly one of these, the answer is to widen the type here,
    never to copy it there. *(not enforced)*
@@ -179,9 +187,12 @@ had one, is worse than an absent invariant.
    truncation, or a reordered shipment stops passing silently. Never let a
    README, doc comment, or commit message imply more than that.
    *(not enforced)*
-9. **Every event schema version keeps passing.** `v0.1`, `v0.2` and `v0.3`
-   streams are all valid input to this tool; dropping support for an older one
-   is a breaking change under invariant 2.
+9. **Every schema version keeps passing.** Event `v0.1`, `v0.2`, `v0.3` and
+   `v1.0` streams, and Passport `v0.1` and `v1.0` documents, are all valid
+   input to this tool, each validated against its own version's schema and
+   never another; dropping support for an older one is a breaking change under
+   invariant 2. `passport.Parse` accepts both Passport versions and, under
+   v1.0 only, refuses a top-level key the schema never named (SPEC 6.4.1).
 
    **`agent-conform` accepts v0.3 and a CONSUMER may refuse it, and the two are
    not in tension.** v0.3 is the version an observer stamps when `agent_id`
@@ -192,7 +203,17 @@ had one, is worse than an absent invariant.
    producer broke the contract when it did not.
    *(test: `TestCheckFileValidEventStreamV01`,
    `TestCheckFileValidEventStreamV02`, `TestCheckFileValidEventStreamV03`,
-   `TestCheckFileClaimedSubjectConformsOnlyUnderV03`)*
+   `TestCheckFileValidEventStreamV10`,
+   `TestCheckFileClaimedSubjectConformsOnlyUnderV03`,
+   `TestCheckFileClaimedSubjectConformsUnderV10`,
+   `TestCheckFileValidPassportV10`,
+   `TestCheckFileV10PassportRefusesAKeyTheSchemaNeverNamed`,
+   `TestCheckFileV01PassportToleratesTheSameKey`,
+   `TestCheckFileUnrecognizedPassportSchemaFails`; in `passport`,
+   `TestParseAcceptsAV10Passport`, `TestParseStillAcceptsAV01Passport`,
+   `TestParseRefusesAV10PassportWithAKeyTheSchemaNeverNamed`,
+   `TestParseToleratesTheSameKeyUnderV01`; scenarios in
+   `features/contract-1.0.feature`)*
 10. **One bad line fails the whole file.** `agent-conform` does not partially
     accept a stream. Blank lines are skipped and are not content.
     *(test: `TestCheckFileEventOneBadLineFailsWholeFile`,
@@ -292,12 +313,13 @@ had one, is worse than an absent invariant.
     harness version differ only in how many layers of quoting sit between the
     text and python. So every mutation asserts it applied: a case whose edit
     changed nothing is a failure, not a pass.
-    *(gate: `scripts/gates-have-teeth.sh`, 18 cases: eight real faults each gate
-    must catch, four non-faults they must not, and six subjects taken away
+    *(gate: `scripts/gates-have-teeth.sh`, 22 cases: ten real faults each gate
+    must catch, five non-faults they must not, and seven subjects taken away
     entirely, where the gate must say it measured nothing rather than report
     OK. It said 12 until `features-are-bound.sh` arrived on 2026-08-26 with four
-    cases of its own, and it said 16 until the version-badge half of
-    `readme-numbers.sh` arrived on 2026-09-03 with two cases of its own, which is
+    cases of its own, it said 16 until the version-badge half of
+    `readme-numbers.sh` arrived on 2026-09-03 with two cases of its own, and it
+    said 18 until `api-surface.sh` arrived on 2026-09-12 with four, which is
     invariant 12's shape inside the file that holds it: the count is updated in
     the commit that changes it, because somebody looks.
     `./scripts/gates-have-teeth.sh | grep -c '^ok '` is the command. The third non-fault arrived on 2026-08-26 and is the first here that
@@ -316,11 +338,17 @@ had one, is worse than an absent invariant.
 
 This list is debt, and it is here to stay visible rather than to be tidy.
 
-**Held by this file alone: invariants 2, 3 and 8.** All three are judgement
-calls about intent, not structure, and they probably stay judgement. Nothing
-can mechanically tell an additive type change from a breaking one in the sense
-that matters to a consumer, and nothing can tell an honest README from an
-over-claiming one.
+**Held by this file alone: invariants 3 and 8.** Both are judgement calls
+about intent, not structure, and they probably stay judgement: nothing can
+tell an honest README from an over-claiming one, and nothing can tell a type
+that belongs here from one that belongs downstream.
+
+Invariant 2 was on this list until 2026-09-12. What a script can hold is the
+half that is structure: whether an exported declaration was removed or its
+signature changed, which `scripts/api-surface.sh` now refuses by comparing the
+source with `api/surface.txt`. Whether an addition is the RIGHT addition stays
+judgement, and the gate does not pretend otherwise: it asks only that the
+addition be recorded in the same commit.
 
 Invariant 1 used to be on this list. It is now `scripts/deps-layering.sh`, and
 that script is the ONE copy of the check: the local hook and CI both call it,

@@ -7,7 +7,7 @@
 [![CI](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml/badge.svg)](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go)
 ![Go](https://img.shields.io/badge/go-1.27-00ADD8.svg)
-![tests](https://img.shields.io/badge/tests-181-brightgreen.svg)
+![tests](https://img.shields.io/badge/tests-196-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-v0.8.0-success.svg)
 
@@ -108,8 +108,8 @@ kind of wheel not to hand-roll):
 
 | Package | Wire schema | What it defines |
 |---|---|---|
-| `passport` | `taipanbox.dev/agent-passport/v0.1` | the Agent Passport document: identity, owner, runtime, provisioning parent, attestation posture |
-| `event` | `taipanbox.dev/agent-event/v0.2` (v0.1 still accepted) | the agent-event NDJSON envelope, plus an append-only `Writer`, tolerant `Scan`/`ReadFile` readers, and the `ChainedWriter`/`VerifyChain` SPEC 6.5 `prev_hash` integrity chain (`Canonicalize`/`ChainHash`) |
+| `passport` | `taipanbox.dev/agent-passport/v0.1` and `/v1.0` (v1.0 closes the document's top level, SPEC 6.4.1; `Parse` accepts both) | the Agent Passport document: identity, owner, runtime, provisioning parent, attestation posture |
+| `event` | `taipanbox.dev/agent-event/v1.0` (v0.1, v0.2 and v0.3 still accepted, SPEC 6.4.1) | the agent-event NDJSON envelope, plus an append-only `Writer`, tolerant `Scan`/`ReadFile` readers, and the `ChainedWriter`/`VerifyChain` SPEC 6.5 `prev_hash` integrity chain (`Canonicalize`/`ChainHash`) |
 | `chain` | n/a (a v0.2 normative rule) | delegation-chain helpers: acyclic, root-first, capped at `chain.MaxDepth` (32) entries |
 | `delegation` | RFC 8693 + RFC 9449 | the delegation TOKEN: signing, offline verification against a held key set, DPoP sender-constraint, and the `act` chain. `vouchryx` issues with it, and `Revocations` is the revocation cache an enforcement point fills `Options.Revoked` from. No enforcement point checks with it yet: nothing in the estate calls `Verify` on a request path, and wiring the doors is its own wave. Standard library only |
 
@@ -490,9 +490,17 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go@v0.8.0`), never a local
   root and shipped inside the `v0.5.1` module zip, against this repository's
   own `.gitignore`
 - [x] `cmd/agent-conform`: standalone conformance-check CLI, full JSON Schema
-  validation (Passport documents + event v0.1/v0.2) against embedded copies
-  of the canonical schemas; live-verified against real fixtures elsewhere
-  in the stack, catching a real 63-vs-64-hex-char `prev_hash` defect
+  validation (Passport documents v0.1 and v1.0, events v0.1/v0.2/v0.3/v1.0,
+  each against its own version's schema and never another) against embedded
+  copies of the canonical schemas; live-verified against real fixtures
+  elsewhere in the stack, catching a real 63-vs-64-hex-char `prev_hash` defect
+- [x] 1.0 (2026-09-12): `passport.SchemaV10`, `event.SchemaV10` and
+  `passport.AcceptedSchemas`; `Parse` refuses a v1.0 document carrying a key
+  the schema never named (`ErrUnknownField`) and keeps tolerating it under
+  v0.1; the exported surface of `chain`, `delegation`, `event` and `passport`
+  is a file, `api/surface.txt`, and `scripts/api-surface.sh` fails when it
+  loses or changes a line (a new major is cut with `--major`); ten scenarios
+  in `features/contract-1.0.feature`, each bound to its test
 
 This module's package set (`passport`, `event`, `chain`) covers everything the
 stack's current Go consumers need; it is not a fixed, closed list, and grows

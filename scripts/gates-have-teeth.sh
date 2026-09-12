@@ -240,7 +240,27 @@ run_case "features-are-bound: a scenario with no binding at all" fail \
 	"binding(s)"
 
 echo
+# invariant 2, gated since 1.0. The comparison runs both ways, so both
+# directions are planted: a promised line the source no longer exports, and an
+# export the file does not record.
+run_case "api-surface: a promised declaration is gone from the source" fail \
+	'./scripts/api-surface.sh' \
+	"$(py 'p = "api/surface.txt"
+s = open(p).read()
+open(p, "w").write(s + "passport: func Vanished() error\n")')" \
+	"lost or changed"
+
+run_case "api-surface: an export the file does not record" fail \
+	'./scripts/api-surface.sh' \
+	"$(py 'open("passport/planted_export.go", "w").write("package passport\n\n// Planted is an export the teeth harness adds and api/surface.txt does not know.\nfunc Planted() {}\n")')" \
+	"grew"
+
 echo "=== and what they must NOT catch ==="
+
+# A doc comment is not the surface: editing one must not read as an API change.
+run_case "api-surface: a doc comment edited on an exported declaration" pass \
+	'./scripts/api-surface.sh' \
+	"$(py 'edit("passport/passport.go", "// AcceptedSchemas lists the Passport schema strings Parse accepts, oldest", "// AcceptedSchemas lists the Passport schema strings Parse accepts, OLDEST")')"
 
 run_case "deps-layering: a stdlib import added to a library package" pass \
 	'./scripts/deps-layering.sh' \
@@ -260,6 +280,12 @@ run_case "readme-numbers: a badge-shaped number elsewhere in the README" pass \
 echo
 echo "=== and the one this estate learned the hard way ==="
 echo "    a gate whose subject is gone must SAY so, not report OK on nothing"
+
+run_case "api-surface: no promised surface left to compare against" fail \
+	'./scripts/api-surface.sh' \
+	"$(py 'import subprocess
+subprocess.run(["git", "rm", "-q", "api/surface.txt"], check=True)')" \
+	"measured nothing"
 
 run_case "readme-numbers: no badge left to compare against" fail \
 	'./scripts/readme-numbers.sh' \
