@@ -30,6 +30,7 @@
   ],
   "schema": "taipanbox.dev/components/v1",
   "repo": "TAIPANBOX/agent-stack-go",
+  "distribution": "Go module github.com/TAIPANBOX/agent-stack-go by tag; agent-conform archives with SHA256SUMS on each GitHub Release",
   "module": "github.com/TAIPANBOX/agent-stack-go",
   "components": [
     {
