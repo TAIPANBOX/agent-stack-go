@@ -410,10 +410,27 @@ func ecPublic(j JWK) (*ecdsa.PublicKey, error) {
 	return pub, nil
 }
 
+// maxRSAModulusBytes bounds the modulus of any RSA key this package will do
+// arithmetic with: 8192 bits, wider than any key an IdP issues.
+//
+// The standard library bounds a modulus from BELOW only (checkKeySize refuses
+// under 1024 bits) and the cost of a verification grows faster than the
+// modulus does. For a proof the key comes off the presenter's own header, so
+// without this line whoever presents a proof decides how much of one core it
+// costs to refuse it: measured 2026-09-16, an all-ones modulus of 48 KiB (the
+// widest that fits under vouchryx's 64 KiB body cap) took 1.34 s in
+// rsa.VerifyPKCS1v15 on Apple silicon, against 245 microseconds for 2048
+// bits. The exponent below has had the same kind of bound since it was
+// written; the modulus did not, which is the asymmetry this closes.
+const maxRSAModulusBytes = 1024
+
 func rsaPublic(j JWK) (*rsa.PublicKey, error) {
 	n, err := unb64(j.N)
 	if err != nil {
 		return nil, err
+	}
+	if len(n) > maxRSAModulusBytes {
+		return nil, errors.New("delegation: modulus too large")
 	}
 	e, err := unb64(j.E)
 	if err != nil {

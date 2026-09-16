@@ -243,3 +243,44 @@ func pad32(n *big.Int) []byte {
 	copy(out[32-len(b):], b)
 	return out
 }
+
+// The key in a proof is whatever the presenter put there, and the issuer's
+// token door checks the proof BEFORE it authenticates anything else. So the
+// cost of verifying the proof is a cost anybody can impose. A 48 KiB modulus
+// fits under vouchryx's 64 KiB body cap and, unbounded, costs 1.34 seconds of
+// one core per request (measured 2026-09-16); this proof must be refused in
+// the time it takes to read its header, not in the time it takes to
+// exponentiate.
+func TestAProofCarryingAnOversizedRsaKeyIsRefusedBeforeAnyArithmetic(t *testing.T) {
+	n := make([]byte, 48<<10)
+	for i := range n {
+		n[i] = 0xff
+	}
+	embed := JWK{Kty: "RSA", N: enc(n), E: enc([]byte{1, 0, 1})}
+	header := map[string]any{"typ": "dpop+jwt", "alg": "RS256", "jwk": embed}
+	h, _ := json.Marshal(header)
+	p, _ := json.Marshal(map[string]any{
+		"htm": method, "htu": url, "iat": time.Now().Unix(), "jti": "oversized",
+	})
+	sig := make([]byte, len(n))
+	for i := range sig {
+		sig[i] = 0x7f
+	}
+	proof := enc(h) + "." + enc(p) + "." + enc(sig)
+
+	started := time.Now()
+	_, err := NewVerifier().Check(proof, method, url, time.Now())
+	took := time.Since(started)
+
+	if err == nil {
+		t.Fatal("a proof carrying a 48 KiB RSA key verified")
+	}
+	// The bound is generous on purpose: the fixed path does no big-number
+	// arithmetic at all and finishes in microseconds, the unfixed one took
+	// 1.34 s here and longer under the race detector. Anything near the bound
+	// means the modulus reached the exponentiation.
+	if took > 100*time.Millisecond {
+		t.Fatalf("refusing the proof took %v, which means the oversized modulus was exponentiated "+
+			"rather than refused at the door", took)
+	}
+}
