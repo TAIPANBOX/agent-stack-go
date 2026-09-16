@@ -9,7 +9,7 @@
 ![Go](https://img.shields.io/badge/go-1.27-00ADD8.svg)
 ![tests](https://img.shields.io/badge/tests-198-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
-![Status](https://img.shields.io/badge/status-v1.0.0-success.svg)
+![Status](https://img.shields.io/badge/status-v1.0.1-success.svg)
 
 <img src="docs/architecture.png" alt="agent-stack-go: the passport, event and chain packages compose one shared contract, imported by tag by Idryx, Wardryx, Mockryx, Qryx, heraldyx, scopyx, terraform-provider-taipan and vouchryx" width="960">
 
@@ -211,7 +211,7 @@ refuse.
 ## Install
 
 ```sh
-go get github.com/TAIPANBOX/agent-stack-go@v1.0.0
+go get github.com/TAIPANBOX/agent-stack-go@v1.0.1
 ```
 
 Pin to a tagged release, not to `@latest` and never to a local `replace`
@@ -399,7 +399,7 @@ func main() {
 ## Command-line tool: `agent-conform`
 
 ```sh
-go install github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform@v1.0.0
+go install github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform@v1.0.1
 agent-conform passport.json events.ndjson
 ```
 
@@ -478,7 +478,7 @@ next divergence is caught by CI rather than by a reader.
 This module follows SemVer, starting at `v0.1.0`. Breaking the wire contract
 (the `passport` or `event` schema) is a spec version bump, never a silent
 change; the Go types version alongside the module itself. Consumers pin it
-by tag (`go get github.com/TAIPANBOX/agent-stack-go@v1.0.0`), never a local
+by tag (`go get github.com/TAIPANBOX/agent-stack-go@v1.0.1`), never a local
 `replace`.
 
 ---
