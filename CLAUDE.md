@@ -591,3 +591,16 @@ refactors that keep every exported signature identical, and additions to
     it scanned the whole file, `delegation/chain.go` names its errors in the doc
     comments above them, and renaming a rule away left the name in prose and the
     gate went on agreeing. Three teeth cases in `gates-have-teeth.sh`)*
+
+22. **A key's size is bounded before any arithmetic is done with it.** The
+    standard library bounds an RSA modulus from BELOW only, and a DPoP proof
+    carries its own key, so without a ceiling whoever presents a proof decides
+    how much of one core it costs to refuse it. `rsaPublic` refuses a modulus
+    wider than 8192 bits (`maxRSAModulusBytes`), beside the exponent bound it
+    has always had; measured 2026-09-16, a 48 KiB modulus cost 1.34 s per
+    verification unbounded and microseconds refused.
+    *(test: `TestAnAbsurdRsaModulusIsRefusedRatherThanComputed` at the key,
+    `TestAProofCarryingAnOversizedRsaKeyIsRefusedBeforeAnyArithmetic` at the
+    door; scenarios in `features/proof-key-bounds.feature`; both run red
+    against the unbounded code first, 1.43 s and an accepted 1025-byte
+    modulus, and a `>=` mutant on the bound is caught by the first)*

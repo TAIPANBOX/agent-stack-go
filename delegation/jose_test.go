@@ -331,3 +331,32 @@ func TestATokenIsVerifiedWithTheKeyItNamesAndNoOther(t *testing.T) {
 		}
 	}
 }
+
+// A modulus, unlike an exponent, has no natural ceiling in the arithmetic: the
+// standard library refuses one that is too SMALL (under 1024 bits) and says
+// nothing about one that is too large, and the cost of a verification grows
+// faster than the modulus does. Measured 2026-09-16 on Apple silicon with
+// rsa.VerifyPKCS1v15 over an all-ones modulus and e=65537: 2048 bits took
+// 245 microseconds, 65536 bits 51 milliseconds, 393216 bits 1.34 seconds.
+// Nothing here needs a key above 8192 bits, so that is where the door is.
+func TestAnAbsurdRsaModulusIsRefusedRatherThanComputed(t *testing.T) {
+	ones := func(n int) string {
+		b := make([]byte, n)
+		for i := range b {
+			b[i] = 0xff
+		}
+		return b64(b)
+	}
+	e := b64([]byte{1, 0, 1})
+
+	if _, err := rsaPublic(JWK{Kty: "RSA", N: ones(1024), E: e}); err != nil {
+		t.Fatalf("an 8192-bit modulus is the widest key anybody issues and must still be accepted: %v", err)
+	}
+	if _, err := rsaPublic(JWK{Kty: "RSA", N: ones(1025), E: e}); err == nil {
+		t.Fatal("a modulus one byte past the ceiling was accepted, so a caller-supplied key " +
+			"decides how much arithmetic this verifier performs")
+	}
+	if _, err := rsaPublic(JWK{Kty: "RSA", N: ones(48 << 10), E: e}); err == nil {
+		t.Fatal("a 48 KiB modulus was accepted; that one costs over a second per verification")
+	}
+}
