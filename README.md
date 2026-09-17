@@ -7,7 +7,7 @@
 [![CI](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml/badge.svg)](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go)
 ![Go](https://img.shields.io/badge/go-1.27-00ADD8.svg)
-![tests](https://img.shields.io/badge/tests-198-brightgreen.svg)
+![tests](https://img.shields.io/badge/tests-200-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-v1.0.1-success.svg)
 

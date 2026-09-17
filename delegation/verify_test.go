@@ -7,7 +7,9 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"math/big"
+	mrand "math/rand"
 	"reflect"
 	"strings"
 	"testing"
@@ -304,4 +306,86 @@ func vpad(n *big.Int) []byte {
 	out := make([]byte, 32)
 	copy(out[32-len(b):], b)
 	return out
+}
+
+func TestARevocationNamingAnyPartyInTheChainRefusesTheToken(t *testing.T) {
+	// A subject revocation names a PARTY. A compromised agent sits in `act`,
+	// never in `sub`, so a list matched against `sub` alone revokes the human
+	// at the root and spares the very agent the entry was written for. Every
+	// earlier test of this path planted the agent as the `subject` argument
+	// directly, which is why the gap lived this long.
+	f := newFixture(t)
+	rng := mrand.New(mrand.NewSource(20260917))
+	for i := 0; i < 200; i++ {
+		depth := 1 + rng.Intn(MaxActorsWithSubject)
+		actors := make([]string, depth)
+		for j := range actors {
+			actors[j] = fmt.Sprintf("agent://acme/a%d-%d", i, j)
+		}
+		act, err := BuildAct(actors)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Issued seven seconds ago, so a verifier that forwarded `now` in place
+		// of the token's own `iat` is told apart by the fourth case.
+		issued := f.now.Unix() - 7
+		tok := f.mint(t, map[string]any{"act": act, "jti": fmt.Sprintf("tok-%d", i), "iat": issued})
+		chain := append([]string{"user://acme/alice"}, actors...)
+		named := chain[rng.Intn(len(chain))]
+
+		// Naming any member, dated at or after the token's issue: refused.
+		o := f.opts(f.proofFrom(t, f.holder, fmt.Sprintf("p-%d-a", i)))
+		o.Revoked = func(_, sub string, iat int64) bool { return sub == named && iat <= f.now.Unix() }
+		if _, err := Verify(tok, o); err != ErrRevoked {
+			t.Fatalf("seed 20260917 case %d: a revocation naming %q (position %d of %d) was not honoured: %v",
+				i, named, indexOf(chain, named), len(chain), err)
+		}
+		// Naming nobody in the chain: honoured.
+		o = f.opts(f.proofFrom(t, f.holder, fmt.Sprintf("p-%d-b", i)))
+		o.Revoked = func(_, sub string, _ int64) bool { return sub == "agent://acme/stranger" }
+		if _, err := Verify(tok, o); err != nil {
+			t.Fatalf("case %d: a revocation naming a stranger refused the token: %v", i, err)
+		}
+		// Naming a member but dated before the token's issue: revoking is not
+		// banning (vouchryx's invariant 7), so the token stands.
+		o = f.opts(f.proofFrom(t, f.holder, fmt.Sprintf("p-%d-c", i)))
+		o.Revoked = func(_, sub string, iat int64) bool { return sub == named && iat < issued }
+		if _, err := Verify(tok, o); err != nil {
+			t.Fatalf("case %d: a revocation older than the token refused it: %v", i, err)
+		}
+		// Naming a member, dated after the issue but before now: refused, and
+		// only a verifier forwarding the token's own `iat` gets this right.
+		o = f.opts(f.proofFrom(t, f.holder, fmt.Sprintf("p-%d-d", i)))
+		o.Revoked = func(_, sub string, iat int64) bool { return sub == named && iat <= f.now.Unix()-3 }
+		if _, err := Verify(tok, o); err != ErrRevoked {
+			t.Fatalf("case %d: a revocation between the token's issue and now was not honoured: %v", i, err)
+		}
+	}
+}
+
+func indexOf(list []string, s string) int {
+	for i, v := range list {
+		if v == s {
+			return i
+		}
+	}
+	return -1
+}
+
+func TestRevocationIsNotConsultedForATokenWhoseChainIsMalformed(t *testing.T) {
+	// The list is asked about every chain entry, so the chain has to be read
+	// before the list is asked about anything: a cyclic `act` is refused as
+	// malformed with zero hook calls, rather than costing a lookup per entry
+	// first. Pins the order, which nothing else did.
+	f := newFixture(t)
+	cyclic := map[string]any{"sub": "agent://acme/triage", "act": map[string]any{"sub": "agent://acme/triage"}}
+	calls := 0
+	o := f.opts(f.proofFrom(t, f.holder, "m1"))
+	o.Revoked = func(string, string, int64) bool { calls++; return true }
+	if _, err := Verify(f.mint(t, map[string]any{"act": cyclic}), o); err != ErrMalformed {
+		t.Fatalf("a cyclic chain was not refused as malformed: %v", err)
+	}
+	if calls != 0 {
+		t.Fatalf("the revocation list was consulted %d time(s) for a token whose chain never parsed", calls)
+	}
 }

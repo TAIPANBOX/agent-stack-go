@@ -47,8 +47,8 @@ delegation: type Answer struct { Revoked	bool Basis	Basis   Age	time.Duration }
 delegation: type Basis int
 delegation: type FailMode int
 delegation: type JWK struct { Kty	string		`json:"kty"` Crv	string		`json:"crv,omitempty"` X	string		`json:"x,omitempty"` Y	string		`json:"y,omitempty"` N	string		`json:"n,omitempty"` E	string		`json:"e,omitempty"` Kid	string		`json:"kid,omitempty"` Use	string		`json:"use,omitempty"` Alg	string		`json:"alg,omitempty"` }
-delegation: type Options struct {  Keys	Set   Issuer	string    Audience	string  Now	time.Time           Proof	string Method, URL	string    Proofs	*Verifier     Revoked	func(jti, subject string, issuedAt int64) bool }
-delegation: type Revocation struct {  JTI	string		`json:"jti,omitempty"`  Subject	string		`json:"subject,omitempty"`  IssuedBefore	int64		`json:"issued_before,omitempty"`        Expires	int64		`json:"expires,omitempty"` }
+delegation: type Options struct {  Keys	Set   Issuer	string    Audience	string  Now	time.Time           Proof	string Method, URL	string    Proofs	*Verifier       Revoked	func(jti, subject string, issuedAt int64) bool }
+delegation: type Revocation struct {  JTI	string		`json:"jti,omitempty"`     Subject	string		`json:"subject,omitempty"`  IssuedBefore	int64		`json:"issued_before,omitempty"`        Expires	int64		`json:"expires,omitempty"` }
 delegation: type Revocations struct { maxAge	time.Duration failMode	FailMode  mu	sync.RWMutex held	*Snapshot     fetchedAt	time.Time rejectedBackwards	uint64 }
 delegation: type Set struct { Keys []JWK `json:"keys"` }
 delegation: type Snapshot struct { Revocations	[]Revocation		`json:"revocations"` AsOf	int64		`json:"as_of"` }

@@ -604,3 +604,17 @@ refactors that keep every exported signature identical, and additions to
     door; scenarios in `features/proof-key-bounds.feature`; both run red
     against the unbounded code first, 1.43 s and an accepted 1025-byte
     modulus, and a `>=` mutant on the bound is caught by the first)*
+
+23. **A subject revocation names a party, wherever that party stands in the
+    chain.** `Verify` asks `Options.Revoked` once per chain entry, root first,
+    the subject and then every actor, and the first hit refuses. Until
+    2026-09-17 it asked about `sub` alone, so an entry naming a compromised
+    agent in `act` matched nothing and revoked nobody, while every test of the
+    path planted the agent as the argument and stayed green. At most 32 calls
+    (`MaxDepth`), none for a token that failed an earlier step and none for a
+    chain that does not parse; the hook's `observe` now fires per entry.
+    *(test: `TestARevocationNamingAnyPartyInTheChainRefusesTheToken`, a seeded
+    sweep of 200 chains, and `TestRevocationIsNotConsultedForATokenWhoseChainIsMalformed`
+    for the order; mutants: the loop collapsed to the root alone, and the hook
+    hoisted above the chain decode, each caught by its test; scenario in
+    `features/revocation.feature`)*
