@@ -317,6 +317,46 @@ func TestABodyThatIsNotAListAtAllIsAnErrorRatherThanAnEmptyList(t *testing.T) {
 	}
 }
 
+// F4 (2026-09-17 delegation review): ParseSnapshot accepted a body with no
+// revocations member, a null one, or one holding a null entry, each as zero
+// valid revocations rather than a refusal, so Install then replaced a held,
+// complete list with an empty-looking one and a known revocation started
+// answering Basis:absent. Asserted end to end, since the defect was never in
+// Check, it was in what reached Install in the first place.
+func TestAMalformedRevocationsMemberCannotEraseAKnownRevocation(t *testing.T) {
+	hostile := []string{
+		`{"as_of":1800000001}`,
+		`{"as_of":1800000001,"revocations":null}`,
+		`{"as_of":1800000001,"revocations":[null]}`,
+	}
+	for _, raw := range hostile {
+		c := NewRevocations(time.Minute, FailClosed)
+		seed := Snapshot{AsOf: revNow.Unix(), Revocations: []Revocation{revJTI("dead", revNow.Add(5*time.Minute))}}
+		if err := c.Install(seed, revNow); err != nil {
+			t.Fatalf("%s: seeding the cache: %v", raw, err)
+		}
+		if !c.Check("dead", "user://a/b", revNow.Unix(), revNow).Revoked {
+			t.Fatalf("%s: bad fixture, the seeded revocation was not held", raw)
+		}
+
+		s, err := ParseSnapshot([]byte(raw))
+		if err == nil {
+			t.Fatalf("%s: parsed rather than being refused: %+v", raw, s)
+		}
+		// Parse failed, so a caller checking its error, as every real one
+		// does, never reaches Install. Confirmed rather than assumed: even
+		// the zero Snapshot the failed parse returns is refused on its own.
+		if err := c.Install(s, revNow.Add(time.Second)); err == nil {
+			t.Fatalf("%s: the zero Snapshot from a failed parse was installed anyway", raw)
+		}
+
+		got := c.Check("dead", "user://a/b", revNow.Unix(), revNow.Add(time.Second))
+		if !got.Revoked {
+			t.Errorf("%s: a malformed snapshot cleared a known revocation: %+v", raw, got)
+		}
+	}
+}
+
 // Invariant 15's seam, asserted on the SHAPE. The request path takes no
 // context and returns no error, so it cannot become a round trip; the fetch
 // takes one, which is the negative control that keeps this from passing by

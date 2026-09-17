@@ -110,6 +110,14 @@ func (s Set) Find(kid string) (JWK, bool) {
 // on purpose: the result of this function is published at
 // `/.well-known/jwks.json`, and a `d` member there is the signing key, in
 // public, forever.
+//
+// Alg names the algorithm the curve actually signs (ES256 for P-256, ES384
+// for P-384) rather than the constant ES256: a JWK's Alg is descriptive
+// metadata that nothing in this package's own verification reads back, but
+// publishing ES256 beside a P-384 key told a relying party the wrong thing
+// about a key it never asked to have named for it. A curve this package
+// does not otherwise name (see [curveName]) is refused the same way an
+// unencodable key already is, rather than published under a made-up crv.
 func FromPublic(pub *ecdsa.PublicKey, kid string) JWK {
 	// `Bytes` and not `pub.X`/`pub.Y`: those have been deprecated since Go 1.25
 	// and the reason given is not style. Reading and writing the raw
@@ -124,15 +132,23 @@ func FromPublic(pub *ecdsa.PublicKey, kid string) JWK {
 		// failure that stops rather than the one that spreads.
 		return JWK{}
 	}
+	crv := curveName(pub.Curve)
+	if crv == "" {
+		return JWK{}
+	}
+	alg := "ES256"
+	if crv == "P-384" {
+		alg = "ES384"
+	}
 	half := (len(raw) - 1) / 2
 	return JWK{
 		Kty: "EC",
-		Crv: curveName(pub.Curve),
+		Crv: crv,
 		X:   b64(raw[1 : 1+half]),
 		Y:   b64(raw[1+half:]),
 		Kid: kid,
 		Use: "sig",
-		Alg: "ES256",
+		Alg: alg,
 	}
 }
 
@@ -159,7 +175,14 @@ func Thumbprint(j JWK) (string, error) {
 }
 
 // SignES256 produces a compact JWS over `claims`.
+//
+// Refuses a key whose curve is not P-256: this package signs ES256 only, and
+// signing with whatever curve it was handed is how a P-384 key ended up
+// labelled ES256 in the first place.
 func SignES256(key *ecdsa.PrivateKey, kid string, claims map[string]any) (string, error) {
+	if key.Curve != elliptic.P256() {
+		return "", fmt.Errorf("delegation: SignES256 signs with a P-256 key only, not %s", key.Curve.Params().Name)
+	}
 	header := map[string]any{"alg": "ES256", "typ": "JWT"}
 	if kid != "" {
 		header["kid"] = kid
@@ -320,10 +343,19 @@ func check(j JWK, alg string, signing, sig []byte) error {
 		if err != nil {
 			return ErrBadSignature
 		}
-		digest, size := digestFor(alg, signing), len(sig)/2
-		if len(sig)%2 != 0 || size == 0 {
+		// The second half of the algorithm-confusion defence: allowed bounds
+		// the key TYPE, and this bounds which CURVE the name is allowed to
+		// mean. ES256 and ES384 are not two spellings of "an EC signature",
+		// each names one curve, and without this a P-384 key with its own
+		// 96-byte signature verified under the name ES256.
+		size, curveOK := curveSizeFor(alg, pub.Curve)
+		if !curveOK {
+			return ErrAlgNotAllowed
+		}
+		if len(sig) != 2*size {
 			return ErrBadSignature
 		}
+		digest := digestFor(alg, signing)
 		r := new(big.Int).SetBytes(sig[:size])
 		s := new(big.Int).SetBytes(sig[size:])
 		if !ecdsa.Verify(pub, digest, r, s) {
@@ -342,6 +374,22 @@ func check(j JWK, alg string, signing, sig []byte) error {
 		return nil
 	default:
 		return ErrAlgNotAllowed
+	}
+}
+
+// curveSizeFor reports the coordinate size an algorithm name requires, and
+// whether this curve is the one that name promises: ES256 means P-256 and
+// nothing else, ES384 means P-384 and nothing else. allowed already refuses
+// any other alg for an EC key, so the default case here is unreachable in
+// practice and refuses anyway rather than assume that stays true.
+func curveSizeFor(alg string, curve elliptic.Curve) (size int, ok bool) {
+	switch alg {
+	case "ES256":
+		return 32, curve == elliptic.P256()
+	case "ES384":
+		return 48, curve == elliptic.P384()
+	default:
+		return 0, false
 	}
 }
 
@@ -448,12 +496,18 @@ func rsaPublic(j JWK) (*rsa.PublicKey, error) {
 	return &rsa.PublicKey{N: new(big.Int).SetBytes(n), E: int(exp)}, nil
 }
 
+// curveName names the curves this package verifies signatures over.
+// Anything else comes back empty, on purpose: falling back to "P-256" for a
+// curve this package does not otherwise handle is how FromPublic once
+// published a P-521 key advertising crv: P-256.
 func curveName(c elliptic.Curve) string {
 	switch c {
+	case elliptic.P256():
+		return "P-256"
 	case elliptic.P384():
 		return "P-384"
 	default:
-		return "P-256"
+		return ""
 	}
 }
 

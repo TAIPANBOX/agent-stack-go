@@ -36,6 +36,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	neturl "net/url"
 	"strings"
 	"sync"
 	"time"
@@ -46,8 +47,9 @@ import (
 // Either way, and not only into the past: a client whose clock is fast would
 // otherwise be refused every time, which an operator diagnoses as "DPoP is
 // broken" rather than "our clock is wrong". RFC 9449 leaves the value to the
-// server; 60 seconds is short enough that the replay cache stays small and long
-// enough to survive ordinary clock drift.
+// server; 60 seconds is short enough that the replay cache stays small (see
+// [Verifier] for the bound this actually gives it) and long enough to survive
+// ordinary clock drift.
 const Window = 60 * time.Second
 
 var (
@@ -61,12 +63,19 @@ var (
 
 // Verifier checks proofs and remembers the ones it has seen.
 //
-// The seen-set is in memory and bounded by [Window], which is a deliberate
-// limit rather than an oversight: a restart forgets, and for the length of one
-// window after a restart a captured proof could be replayed once. Making that
-// durable means a store on the request path of every token issue, and the
-// window is sixty seconds. It is written down in the README rather than left
-// for somebody to discover.
+// The seen-set is in memory, keyed by jti, and holds each proof's own iat
+// rather than the moment it was first seen. An entry is pruned once the
+// proof it belongs to can no longer be fresh, now.Sub(iat) > [Window], which
+// is the exact instant Check would start refusing that same proof as stale:
+// nothing here forgets a proof before it stops mattering. That bounds the
+// set by twice Window from first sight in the worst case, since a proof
+// presented at iat = now + Window is not pruned until iat + Window = now +
+// 2*Window, which is a deliberate limit rather than an oversight: a restart
+// forgets the whole set, and for the length of one window after a restart a
+// captured proof could be replayed once. Making that durable means a store
+// on the request path of every token issue, and the window is sixty
+// seconds. It is written down in the README rather than left for somebody
+// to discover.
 type Verifier struct {
 	mu   sync.Mutex
 	seen map[string]time.Time
@@ -133,7 +142,9 @@ func (v *Verifier) Check(proof, method, url string, now time.Time) (string, erro
 		return "", ErrSignature
 	}
 
-	if s, _ := claims["htm"].(string); !strings.EqualFold(s, method) {
+	if s, _ := claims["htm"].(string); s != method {
+		// RFC 9110: methods are case sensitive. Folding here would let a
+		// proof bound to POST also verify a request logged as post.
 		return "", ErrBinding
 	}
 	if s, _ := claims["htu"].(string); !sameURL(s, url) {
@@ -143,7 +154,8 @@ func (v *Verifier) Check(proof, method, url string, now time.Time) (string, erro
 	if !ok {
 		return "", ErrStale
 	}
-	drift := now.Sub(time.Unix(iat, 0))
+	iatTime := time.Unix(iat, 0)
+	drift := now.Sub(iatTime)
 	if drift < -Window || drift > Window {
 		return "", ErrStale
 	}
@@ -153,24 +165,27 @@ func (v *Verifier) Check(proof, method, url string, now time.Time) (string, erro
 		// replayed freely inside its window.
 		return "", ErrReplay
 	}
-	if err := v.remember(jti, now); err != nil {
+	if err := v.remember(jti, iatTime, now); err != nil {
 		return "", err
 	}
 	return thumb, nil
 }
 
-func (v *Verifier) remember(jti string, now time.Time) error {
+// remember keys the seen-set by jti and holds the proof's own iat, not the
+// moment it was first seen: see [Verifier] for why that is the bound that
+// actually matches Check's own staleness rule.
+func (v *Verifier) remember(jti string, iat, now time.Time) error {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-	for id, at := range v.seen {
-		if now.Sub(at) > Window {
+	for id, seenIat := range v.seen {
+		if now.Sub(seenIat) > Window {
 			delete(v.seen, id)
 		}
 	}
 	if _, ok := v.seen[jti]; ok {
 		return ErrReplay
 	}
-	v.seen[jti] = now
+	v.seen[jti] = iat
 	return nil
 }
 
@@ -192,11 +207,27 @@ func hasPrivateMember(raw json.RawMessage) bool {
 	return false
 }
 
+// sameURL reports whether the claimed htu and the URL this server received
+// name the same request. Per RFC 9449 section 4.3 read with RFC 3986 section
+// 6.2.2.1, the scheme and the host fold case; the path does not, so a proof
+// bound to /v1/token must not verify /v1/TOKEN. Compared without the query
+// and fragment, since `htu` is the request URI with those removed and a
+// server that kept them would refuse every proof for a URL carrying a
+// cache-buster. Either side failing to parse, or naming no scheme or no
+// host (a relative URL, among other things), refuses rather than comparing
+// empty strings as equal.
 func sameURL(a, b string) bool {
-	// Compared without the query and fragment, per RFC 9449 section 4.3: `htu`
-	// is the request URI with those removed, and a server that compared them
-	// would refuse every proof for a URL carrying a cache-buster.
-	return strings.EqualFold(trim(a), trim(b))
+	pa, err := neturl.Parse(trim(a))
+	if err != nil || pa.Scheme == "" || pa.Host == "" {
+		return false
+	}
+	pb, err := neturl.Parse(trim(b))
+	if err != nil || pb.Scheme == "" || pb.Host == "" {
+		return false
+	}
+	return strings.EqualFold(pa.Scheme, pb.Scheme) &&
+		strings.EqualFold(pa.Host, pb.Host) &&
+		pa.EscapedPath() == pb.EscapedPath()
 }
 
 func trim(u string) string {
