@@ -326,7 +326,10 @@ func TestARevocationNamingAnyPartyInTheChainRefusesTheToken(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		tok := f.mint(t, map[string]any{"act": act, "jti": fmt.Sprintf("tok-%d", i)})
+		// Issued seven seconds ago, so a verifier that forwarded `now` in place
+		// of the token's own `iat` is told apart by the fourth case.
+		issued := f.now.Unix() - 7
+		tok := f.mint(t, map[string]any{"act": act, "jti": fmt.Sprintf("tok-%d", i), "iat": issued})
 		chain := append([]string{"user://acme/alice"}, actors...)
 		named := chain[rng.Intn(len(chain))]
 
@@ -346,9 +349,16 @@ func TestARevocationNamingAnyPartyInTheChainRefusesTheToken(t *testing.T) {
 		// Naming a member but dated before the token's issue: revoking is not
 		// banning (vouchryx's invariant 7), so the token stands.
 		o = f.opts(f.proofFrom(t, f.holder, fmt.Sprintf("p-%d-c", i)))
-		o.Revoked = func(_, sub string, iat int64) bool { return sub == named && iat <= f.now.Unix()-1 }
+		o.Revoked = func(_, sub string, iat int64) bool { return sub == named && iat < issued }
 		if _, err := Verify(tok, o); err != nil {
 			t.Fatalf("case %d: a revocation older than the token refused it: %v", i, err)
+		}
+		// Naming a member, dated after the issue but before now: refused, and
+		// only a verifier forwarding the token's own `iat` gets this right.
+		o = f.opts(f.proofFrom(t, f.holder, fmt.Sprintf("p-%d-d", i)))
+		o.Revoked = func(_, sub string, iat int64) bool { return sub == named && iat <= f.now.Unix()-3 }
+		if _, err := Verify(tok, o); err != ErrRevoked {
+			t.Fatalf("case %d: a revocation between the token's issue and now was not honoured: %v", i, err)
 		}
 	}
 }
