@@ -85,9 +85,11 @@ type Options struct {
 	// inside its window.
 	Proofs *Verifier
 
-	// Revoked is consulted after the signature checks pass. Optional; when it
-	// is nil, revocation is NOT checked, and a caller that leaves it nil has
-	// decided that a valid signature is enough.
+	// Revoked is consulted after the signature checks pass, once per chain
+	// entry (the subject, then every actor, root first), because a subject
+	// revocation names a party and the party a compromised agent is sits in
+	// `act`. Optional; when it is nil, revocation is NOT checked, and a caller
+	// that leaves it nil has decided that a valid signature is enough.
 	Revoked func(jti, subject string, issuedAt int64) bool
 }
 
@@ -95,8 +97,9 @@ type Options struct {
 // bearer token.
 //
 // The order is deliberate and each step is cheaper than the next thing it
-// protects: shape, signature, issuer, audience, expiry, binding, revocation. A
-// revocation lookup on a forged token would be work an attacker chose.
+// protects: shape, signature, issuer, audience, expiry, binding, chain,
+// revocation. A revocation lookup on a forged token would be work an attacker
+// chose.
 func Verify(token string, o Options) (Verified, error) {
 	claims, err := VerifyToken(token, o.Keys)
 	if err != nil {
@@ -153,10 +156,6 @@ func Verify(token string, o Options) (Verified, error) {
 		return Verified{}, ErrWrongKey
 	}
 
-	if o.Revoked != nil && o.Revoked(jti, sub, iat) {
-		return Verified{}, ErrRevoked
-	}
-
 	var act Act
 	if err := decodeAct(claims["act"], &act); err != nil {
 		return Verified{}, ErrMalformed
@@ -168,6 +167,22 @@ func Verify(token string, o Options) (Verified, error) {
 	chain, err := Chain(sub, &act)
 	if err != nil {
 		return Verified{}, ErrMalformed
+	}
+
+	// A subject revocation names a PARTY, and the party an operator revokes
+	// when an agent is compromised usually sits in `act`, with a human at the
+	// root in `sub`. So the list is asked once per chain entry, root first,
+	// and the first hit wins. Until 2026-09-17 it was asked about `sub` only,
+	// so an entry naming an agent in `act` matched nothing and revoked nobody,
+	// and every test of this path had planted the agent as the argument
+	// directly. At most 32 calls (MaxDepth), none for a token that failed an
+	// earlier step, and none for a chain that does not parse.
+	if o.Revoked != nil {
+		for _, party := range chain {
+			if o.Revoked(jti, party, iat) {
+				return Verified{}, ErrRevoked
+			}
+		}
 	}
 
 	scope, _ := claims["scope"].(string)

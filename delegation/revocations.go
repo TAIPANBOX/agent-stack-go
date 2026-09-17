@@ -112,7 +112,10 @@ var (
 type Revocation struct {
 	// JTI revokes exactly one token. Empty when this is a subject entry.
 	JTI string `json:"jti,omitempty"`
-	// Subject revokes every token issued for it at or before IssuedBefore.
+	// Subject names a PARTY and revokes every token issued at or before
+	// IssuedBefore that carries it anywhere in its chain: as the human at the
+	// root (`sub`) or as any actor in `act`. `Verify` asks once per chain
+	// entry, so a consumer holding this list needs no chain logic of its own.
 	Subject string `json:"subject,omitempty"`
 	// IssuedBefore is a Unix second. Only meaningful with Subject.
 	IssuedBefore int64 `json:"issued_before,omitempty"`
@@ -368,6 +371,9 @@ func (r *Revocations) Check(jti, subject string, issuedAt int64, now time.Time) 
 // observe takes the whole [Answer] and may be nil. It is a parameter rather
 // than something a caller has to go and ask for, so the site that wires this up
 // has to decide what it does with a fallback rather than never being shown one.
+// Since 2026-09-17 `Verify` calls the hook once per chain entry, root first,
+// so `observe` fires up to 32 times per verification and, on a stale or
+// never-fetched list, sees the same fallback answer for every entry.
 func (r *Revocations) Hook(now time.Time, observe func(Answer)) func(jti, subject string, issuedAt int64) bool {
 	return func(jti, subject string, issuedAt int64) bool {
 		a := r.Check(jti, subject, issuedAt, now)
