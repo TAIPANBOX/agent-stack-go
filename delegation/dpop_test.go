@@ -420,4 +420,37 @@ func TestADPoPProofCarryingAP384KeyIsRefusedUnderTheNameES256(t *testing.T) {
 	if _, err := NewVerifier().Check(p, method, url, now); err == nil {
 		t.Fatal("a P-384 key verified a DPoP proof under the name ES256")
 	}
+	// Pinned at the layer that can name it: VerifyWith is what Check calls
+	// internally, and unlike Check it does not collapse the reason to
+	// ErrSignature, so the same proof asked here must say ErrAlgNotAllowed.
+	if _, err := VerifyWith(p, FromPublic(&k384.PublicKey, "")); !errors.Is(err, ErrAlgNotAllowed) {
+		t.Fatalf("VerifyWith did not refuse the same proof as ErrAlgNotAllowed: %v", err)
+	}
+}
+
+// Second-model review, 2026-09-17: nothing asserted the host or the scheme
+// on their own. Folding strings.EqualFold(pa.Host, pb.Host) to a bare true,
+// or the scheme fold to a bare true, passes the whole suite without this: a
+// proof captured for one host or scheme must not verify a request to
+// another.
+func TestAProofForAnotherHostOrSchemeIsRefused(t *testing.T) {
+	k := newKey(t)
+	now := time.Now()
+	for _, got := range []string{"https://evil.internal/v1/token", "http://vouchryx.internal/v1/token"} {
+		if _, err := NewVerifier().Check(good(t, k, now), method, got, now); !errors.Is(err, ErrBinding) {
+			t.Errorf("url %q verified a proof bound to %s: %v", got, url, err)
+		}
+	}
+}
+
+// Second-model review, 2026-09-17: EscapedPath, not the decoded Path.
+// /v1%2Ftoken and /v1/token decode to the identical Path but are different
+// requests on the wire; comparing the decoded form would treat an escaped
+// path separator as though it were a literal one.
+func TestAnEscapedPathSeparatorDoesNotMatchADecodedOne(t *testing.T) {
+	k := newKey(t)
+	now := time.Now()
+	if _, err := NewVerifier().Check(good(t, k, now), method, "https://vouchryx.internal/v1%2Ftoken", now); !errors.Is(err, ErrBinding) {
+		t.Fatalf("an escaped path separator verified a proof bound to a literal one: %v", err)
+	}
 }

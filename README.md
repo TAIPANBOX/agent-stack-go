@@ -7,7 +7,7 @@
 [![CI](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml/badge.svg)](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go)
 ![Go](https://img.shields.io/badge/go-1.27-00ADD8.svg)
-![tests](https://img.shields.io/badge/tests-215-brightgreen.svg)
+![tests](https://img.shields.io/badge/tests-218-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-v1.0.1-success.svg)
 
@@ -111,7 +111,7 @@ kind of wheel not to hand-roll):
 | `passport` | `taipanbox.dev/agent-passport/v0.1` and `/v1.0` (v1.0 closes the document's top level, SPEC 6.4.1; `Parse` accepts both) | the Agent Passport document: identity, owner, runtime, provisioning parent, attestation posture |
 | `event` | `taipanbox.dev/agent-event/v1.0` (v0.1, v0.2 and v0.3 still accepted, SPEC 6.4.1) | the agent-event NDJSON envelope, plus an append-only `Writer`, tolerant `Scan`/`ReadFile` readers, and the `ChainedWriter`/`VerifyChain` SPEC 6.5 `prev_hash` integrity chain (`Canonicalize`/`ChainHash`) |
 | `chain` | n/a (a v0.2 normative rule) | delegation-chain helpers: acyclic, root-first, capped at `chain.MaxDepth` (32) entries |
-| `delegation` | RFC 8693 + RFC 9449 | the delegation TOKEN: signing, offline verification against a held key set, DPoP sender-constraint, and the `act` chain. `vouchryx` issues with it, and `Revocations` is the revocation cache an enforcement point fills `Options.Revoked` from. No enforcement point checks with it yet: nothing in the estate calls `Verify` on a request path, and wiring the doors is its own wave. Standard library only |
+| `delegation` | RFC 8693 + RFC 9449 | the delegation TOKEN: signing, offline verification against a held key set, DPoP sender-constraint, and the `act` chain. The DPoP replay cache is in memory, bounded by twice the proof freshness window in the worst case, and a restart forgets it, so a captured proof could be replayed once in the window right after. `vouchryx` issues with it, and `Revocations` is the revocation cache an enforcement point fills `Options.Revoked` from. No enforcement point checks with it yet: nothing in the estate calls `Verify` on a request path, and wiring the doors is its own wave. Standard library only |
 
 ### `event.Event` - the agent-event envelope
 

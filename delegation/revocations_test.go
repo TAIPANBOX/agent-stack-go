@@ -339,15 +339,20 @@ func TestAMalformedRevocationsMemberCannotEraseAKnownRevocation(t *testing.T) {
 			t.Fatalf("%s: bad fixture, the seeded revocation was not held", raw)
 		}
 
+		// Errorf rather than Fatalf: a Fatalf here on the first hostile body
+		// stops the loop before the other two are even attempted, which is
+		// exactly how this test once showed only one red line against the
+		// unfixed code while two more bodies were silently never checked.
 		s, err := ParseSnapshot([]byte(raw))
 		if err == nil {
-			t.Fatalf("%s: parsed rather than being refused: %+v", raw, s)
+			t.Errorf("%s: parsed rather than being refused: %+v", raw, s)
 		}
-		// Parse failed, so a caller checking its error, as every real one
-		// does, never reaches Install. Confirmed rather than assumed: even
-		// the zero Snapshot the failed parse returns is refused on its own.
-		if err := c.Install(s, revNow.Add(time.Second)); err == nil {
-			t.Fatalf("%s: the zero Snapshot from a failed parse was installed anyway", raw)
+		// A real caller checks the error before calling Install, as
+		// simulated here; a body that parses when it should not is thereby
+		// shown installing over the seeded list too, not just mis-parsing.
+		installErr := c.Install(s, revNow.Add(time.Second))
+		if err == nil && installErr == nil {
+			t.Errorf("%s: a snapshot from an unrefused parse was installed over the seeded list", raw)
 		}
 
 		got := c.Check("dead", "user://a/b", revNow.Unix(), revNow.Add(time.Second))

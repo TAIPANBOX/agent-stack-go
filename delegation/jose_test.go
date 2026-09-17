@@ -493,3 +493,25 @@ func TestTheThumbprintDoesNotMoveWhenAlgDoes(t *testing.T) {
 		t.Fatalf("the thumbprint moved when alg did: RFC 7638 excludes it")
 	}
 }
+
+// Second-model review, 2026-09-17: deleting the len(sig) != 2*size line
+// above this test's target survives the rest of the suite, and a signature
+// shorter than the curve's own coordinate size would then panic slicing
+// sig[:size] rather than being refused. A short signature must come back as
+// ErrBadSignature, never a panic.
+func TestAShortECSignatureIsRefusedRatherThanPanicking(t *testing.T) {
+	k := key(t)
+	tok, err := SignES256(k, "kid", map[string]any{"sub": "a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parts := strings.Split(tok, ".")
+	set := Set{Keys: []JWK{FromPublic(&k.PublicKey, "kid")}}
+	for _, n := range []int{1, 63} {
+		short := base64.RawURLEncoding.EncodeToString(make([]byte, n))
+		bad := parts[0] + "." + parts[1] + "." + short
+		if _, err := VerifyToken(bad, set); !errors.Is(err, ErrBadSignature) {
+			t.Errorf("a %d-byte EC signature was not refused as ErrBadSignature: %v", n, err)
+		}
+	}
+}

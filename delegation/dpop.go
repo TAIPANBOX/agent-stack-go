@@ -208,14 +208,19 @@ func hasPrivateMember(raw json.RawMessage) bool {
 }
 
 // sameURL reports whether the claimed htu and the URL this server received
-// name the same request. Per RFC 9449 section 4.3 read with RFC 3986 section
-// 6.2.2.1, the scheme and the host fold case; the path does not, so a proof
-// bound to /v1/token must not verify /v1/TOKEN. Compared without the query
-// and fragment, since `htu` is the request URI with those removed and a
-// server that kept them would refuse every proof for a URL carrying a
-// cache-buster. Either side failing to parse, or naming no scheme or no
-// host (a relative URL, among other things), refuses rather than comparing
-// empty strings as equal.
+// name the same request. RFC 9449 section 4.3 asks for the scheme and host
+// rule of RFC 3986 section 6.2.2.1, which this applies. That section also
+// folds the case of percent-encoding hex digits, which EscapedPath below
+// does not: RFC 9449 section 4.3 states its own normalisations as a SHOULD,
+// so comparing the path more strictly than that is permitted rather than
+// required, and it is what keeps /v1%2Ftoken from matching /v1/token, two
+// different requests once the escape is taken literally. The path is
+// compared exactly otherwise, so a proof bound to /v1/token must not verify
+// /v1/TOKEN either. Compared without the query and fragment, since `htu` is
+// the request URI with those removed and a server that kept them would
+// refuse every proof for a URL carrying a cache-buster. Either side failing
+// to parse, or naming no scheme or no host (a relative URL, among other
+// things), refuses rather than comparing empty strings as equal.
 func sameURL(a, b string) bool {
 	pa, err := neturl.Parse(trim(a))
 	if err != nil || pa.Scheme == "" || pa.Host == "" {

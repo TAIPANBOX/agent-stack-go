@@ -1,12 +1,14 @@
 Feature: A DPoP proof means exactly what it claims, and a key's curve matches its algorithm's name
 
-  @measured the 2026-09-17 delegation review's probe suite
+  Measured 2026-09-17 with this package's own tests below, red at `da26c65`
+  and green at `222702f`: the 2026-09-17 delegation review's probe suite
   (TestCodexReplayWindowRemembersFutureDatedProofUntilItExpires,
   TestCodexDPoPBindingPreservesCaseSensitivePathAndMethod,
   TestCodexInvariant1ES256MustNotAcceptP384Key,
-  TestCodexInvariant19MalformedSnapshotCannotEraseKnownRevocation), reproducing
-  four LOW findings (F3, F4, F6, F7) against the unchanged code before any
-  scenario below closed them.
+  TestCodexInvariant19MalformedSnapshotCannotEraseKnownRevocation) first
+  showed four findings (F3, F4, F6, F7; F3 and F4 rated MEDIUM, F6 and F7
+  rated LOW by that review) against the unchanged code, closed by the
+  scenarios below.
 
   Four checks in this package each resolved an ambiguous boundary toward the
   friendlier of two readings instead of the strict one their own doc comments
@@ -17,9 +19,12 @@ Feature: A DPoP proof means exactly what it claims, and a key's curve matches it
   replayed once its entry aged out, for as long as its own freshness had left.
 
   F6: htm and htu folded case over the whole method and the whole URL, so a
-  proof bound to POST /v1/token also verified post and /v1/TOKEN, where
-  RFC 9110 and RFC 9449 read with RFC 3986 section 6.2.2.1 promise the method
-  and the path stay case sensitive and only the scheme and the host fold.
+  proof bound to POST /v1/token also verified post and /v1/TOKEN, and nothing
+  tested the host or the scheme on their own either. RFC 9110 methods are
+  case sensitive, and RFC 9449 section 4.3 asks for the scheme and host rule
+  of RFC 3986 section 6.2.2.1, which also folds the case of percent-encoding
+  hex digits; comparing the path without that fold is a stricter choice
+  section 4.3 permits, since it states its own normalisations as a SHOULD.
 
   F7: ES256 and ES384 named an algorithm without checking the curve behind it,
   so a P-384 key with its own 96-byte signature verified under the name
@@ -32,7 +37,8 @@ Feature: A DPoP proof means exactly what it claims, and a key's curve matches it
   Install replaced a complete held list with an empty-looking one and a known
   revocation stopped being held.
 
-  @decided 2026-09-17: the LOW findings of that review are closed as measured.
+  @decided 2026-09-17: the four findings F3, F4, F6 and F7 of that review
+  (two MEDIUM, two LOW) are closed as measured.
 
   # @test:TestAFutureDatedProofIsRememberedUntilItsOwnFreshnessEnds
   Scenario: A future-dated proof is remembered for exactly as long as it could still be fresh
@@ -67,6 +73,12 @@ Feature: A DPoP proof means exactly what it claims, and a key's curve matches it
     Given a proof bound to https://vouchryx.internal/v1/token
     When it is checked against HTTPS://VOUCHRYX.INTERNAL/v1/token
     Then it verifies, because only the scheme and the host are allowed to fold
+
+  # @test:TestAProofForAnotherHostOrSchemeIsRefused
+  Scenario: A proof for another host or another scheme is refused
+    Given a proof bound to https://vouchryx.internal/v1/token
+    When it is checked against https://evil.internal/v1/token and against http://vouchryx.internal/v1/token
+    Then both are refused as a binding mismatch
 
   # @test:TestARelativeOrUnparseableHtuIsRefused
   Scenario: A relative or unparseable htu binds to nothing
