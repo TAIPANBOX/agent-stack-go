@@ -9,6 +9,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"math/big"
 	"strings"
 	"testing"
@@ -358,5 +359,159 @@ func TestAnAbsurdRsaModulusIsRefusedRatherThanComputed(t *testing.T) {
 	}
 	if _, err := rsaPublic(JWK{Kty: "RSA", N: ones(48 << 10), E: e}); err == nil {
 		t.Fatal("a 48 KiB modulus was accepted; that one costs over a second per verification")
+	}
+}
+
+// F7 (2026-09-17 delegation review): the coarse EC-versus-RSA allowlist in
+// allowed held, but nothing checked which CURVE a name like ES256 promises,
+// so a P-384 key with its own 96-byte signature verified under alg: ES256.
+
+func ecKeyOnCurve(t *testing.T, curve elliptic.Curve) *ecdsa.PrivateKey {
+	t.Helper()
+	k, err := ecdsa.GenerateKey(curve, rand.Reader)
+	if err != nil {
+		t.Fatalf("generating a key on %s: %v", curve.Params().Name, err)
+	}
+	return k
+}
+
+// signAs builds a compact JWS by hand, so the test controls the header's alg
+// independently of the signing key's actual curve. Once fixed, SignES256
+// refuses that combination itself, so this is the only way left to ask
+// check() what it does when a name and a curve disagree.
+func signAs(t *testing.T, k *ecdsa.PrivateKey, alg, kid string, claims map[string]any) string {
+	t.Helper()
+	h := jb64(t, map[string]any{"alg": alg, "typ": "JWT", "kid": kid})
+	p := jb64(t, claims)
+	digest := digestFor(alg, []byte(h+"."+p))
+	r, s, err := ecdsa.Sign(rand.Reader, k, digest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	size := (k.Curve.Params().BitSize + 7) / 8
+	sig := append(pad(r.Bytes(), size), pad(s.Bytes(), size)...)
+	return h + "." + p + "." + base64.RawURLEncoding.EncodeToString(sig)
+}
+
+func signES384(t *testing.T, k *ecdsa.PrivateKey, kid string, claims map[string]any) string {
+	t.Helper()
+	return signAs(t, k, "ES384", kid, claims)
+}
+
+func TestES256RefusesAP384KeyAndItsNinetySixByteSignature(t *testing.T) {
+	k := ecKeyOnCurve(t, elliptic.P384())
+	tok := signAs(t, k, "ES256", "p384", map[string]any{"sub": "attacker"})
+	set := Set{Keys: []JWK{FromPublic(&k.PublicKey, "p384")}}
+	if _, err := VerifyToken(tok, set); !errors.Is(err, ErrAlgNotAllowed) {
+		t.Fatalf("a P-384 key verified under the name ES256: %v", err)
+	}
+}
+
+// The reverse: a name that promises the wider curve must not accept the
+// narrower one either, or the check is a P-384 special case rather than a
+// rule.
+func TestES384RefusesAP256Key(t *testing.T) {
+	k := key(t)
+	tok := signAs(t, k, "ES384", "p256", map[string]any{"sub": "attacker"})
+	set := Set{Keys: []JWK{FromPublic(&k.PublicKey, "p256")}}
+	if _, err := VerifyToken(tok, set); !errors.Is(err, ErrAlgNotAllowed) {
+		t.Fatalf("a P-256 key verified under the name ES384: %v", err)
+	}
+}
+
+// The control: a correctly matched ES384/P-384 pair must go on verifying, or
+// the fix over-refuses rather than closing the gap.
+func TestACorrectlySignedEs384TokenStillVerifies(t *testing.T) {
+	k := ecKeyOnCurve(t, elliptic.P384())
+	tok := signES384(t, k, "p384", map[string]any{"sub": "agent://a/b"})
+	set := Set{Keys: []JWK{FromPublic(&k.PublicKey, "p384")}}
+	claims, err := VerifyToken(tok, set)
+	if err != nil {
+		t.Fatalf("a correctly signed ES384/P-384 token was refused: %v", err)
+	}
+	if claims["sub"] != "agent://a/b" {
+		t.Fatalf("claims did not survive: %v", claims)
+	}
+}
+
+// SignES256 itself produced the mismatch it accepted: it signed with
+// whatever curve it was handed. It must now refuse any curve but its own,
+// while going on signing the one it names.
+func TestSignES256RefusesEveryCurveButP256(t *testing.T) {
+	for _, curve := range []elliptic.Curve{elliptic.P384(), elliptic.P521()} {
+		k := ecKeyOnCurve(t, curve)
+		if _, err := SignES256(k, "kid", map[string]any{"sub": "a"}); err == nil {
+			t.Errorf("SignES256 signed with a %s key", curve.Params().Name)
+		}
+	}
+	k := key(t)
+	tok, err := SignES256(k, "kid", map[string]any{"sub": "a"})
+	if err != nil {
+		t.Fatalf("SignES256 refused its one correct curve: %v", err)
+	}
+	if _, err := VerifyToken(tok, Set{Keys: []JWK{FromPublic(&k.PublicKey, "kid")}}); err != nil {
+		t.Fatalf("a P-256 signature did not verify: %v", err)
+	}
+}
+
+// curveName labelled every curve that is not P-384 as P-256, so FromPublic
+// published a P-521 key advertising crv: P-256. It must refuse to publish a
+// curve it cannot name at all, the same fail-closed shape it already uses
+// for a key that cannot encode itself.
+func TestFromPublicRefusesAP521Key(t *testing.T) {
+	k := ecKeyOnCurve(t, elliptic.P521())
+	if got := FromPublic(&k.PublicKey, "kid"); got != (JWK{}) {
+		t.Fatalf("a P-521 key produced a JWK rather than being refused: %+v", got)
+	}
+}
+
+// FromPublic hardcoded Alg to ES256 regardless of curve. A P-384 key must
+// publish both its curve and the algorithm name that curve actually signs.
+func TestFromPublicNamesTheAlgorithmFromTheCurve(t *testing.T) {
+	k := ecKeyOnCurve(t, elliptic.P384())
+	got := FromPublic(&k.PublicKey, "kid")
+	if got.Crv != "P-384" || got.Alg != "ES384" {
+		t.Fatalf("a P-384 key published as crv=%q alg=%q, want P-384/ES384", got.Crv, got.Alg)
+	}
+}
+
+// The control for the Alg change: RFC 7638 excludes alg from the thumbprint,
+// so a P-256 key's thumbprint must be the same value whatever Alg says.
+func TestTheThumbprintDoesNotMoveWhenAlgDoes(t *testing.T) {
+	k := key(t)
+	j := FromPublic(&k.PublicKey, "kid")
+	want, err := Thumbprint(j)
+	if err != nil {
+		t.Fatal(err)
+	}
+	j.Alg = "something-else"
+	got, err := Thumbprint(j)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("the thumbprint moved when alg did: RFC 7638 excludes it")
+	}
+}
+
+// Second-model review, 2026-09-17: deleting the len(sig) != 2*size line
+// above this test's target survives the rest of the suite, and a signature
+// shorter than the curve's own coordinate size would then panic slicing
+// sig[:size] rather than being refused. A short signature must come back as
+// ErrBadSignature, never a panic.
+func TestAShortECSignatureIsRefusedRatherThanPanicking(t *testing.T) {
+	k := key(t)
+	tok, err := SignES256(k, "kid", map[string]any{"sub": "a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	parts := strings.Split(tok, ".")
+	set := Set{Keys: []JWK{FromPublic(&k.PublicKey, "kid")}}
+	for _, n := range []int{1, 63} {
+		short := base64.RawURLEncoding.EncodeToString(make([]byte, n))
+		bad := parts[0] + "." + parts[1] + "." + short
+		if _, err := VerifyToken(bad, set); !errors.Is(err, ErrBadSignature) {
+			t.Errorf("a %d-byte EC signature was not refused as ErrBadSignature: %v", n, err)
+		}
 	}
 }

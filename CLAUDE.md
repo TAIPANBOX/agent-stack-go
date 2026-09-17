@@ -618,3 +618,105 @@ refactors that keep every exported signature identical, and additions to
     for the order; mutants: the loop collapsed to the root alone, and the hook
     hoisted above the chain decode, each caught by its test; scenario in
     `features/revocation.feature`)*
+
+24. **A verifier that resolves an ambiguous boundary toward acceptance has
+    chosen the attacker's reading, even when nothing else about the check is
+    wrong.** Measured 2026-09-17 with the finding-closing tests named below
+    (the controls and the mutant-catching tests never were red), red at
+    `da26c65` and green at `222702f`: the 2026-09-17 delegation
+    review's probe suite (`TestCodexReplayWindowRemembersFutureDatedProofUntilItExpires`,
+    `TestCodexDPoPBindingPreservesCaseSensitivePathAndMethod`,
+    `TestCodexInvariant1ES256MustNotAcceptP384Key`,
+    `TestCodexInvariant19MalformedSnapshotCannotEraseKnownRevocation`, kept in
+    a private evidence archive and not runnable from this repository) first
+    showed it. Four checks in this package each read a boundary case as the
+    friendlier of two answers instead of the strict one their own doc
+    comments already promised.
+
+    **The DPoP replay window forgot a future-dated proof before the proof
+    itself went stale.** `remember` pruned an entry `Window` after the moment
+    it was first seen rather than `Window` after the `iat` it was seen with, so
+    a proof presented with `iat` up to 60 seconds ahead of `now` was forgotten
+    as early as 60 seconds after first sight and then accepted again for as
+    long as its own freshness window still had left. An entry now lives until
+    `now.Sub(iat) > Window`, the exact instant `Check` would start refusing
+    that same proof as stale, which bounds the seen-set by twice `Window` from
+    first sight in the worst case rather than narrowing the fix to the moment
+    it was noticed.
+    *(test: `TestAFutureDatedProofIsRememberedUntilItsOwnFreshnessEnds`, a
+    swept `skew` of 1 to 60 seconds, and
+    `TestABackwardDatedProofIsForgottenNoLaterThanItsOwnFreshnessEnds` for the
+    other direction; a mutant that restored storing `now` instead of `iat` was
+    caught by the sweep)*
+
+    **`htm` and `htu` folded case where RFC 9449 does not ask for it.**
+    `strings.EqualFold` ran over the whole method and the whole URL, so a
+    proof bound to `POST /v1/token` also verified `post` and `/v1/TOKEN`, and
+    nothing tested the host or the scheme on their own either, so a proof
+    captured for `https://evil.internal/v1/token` or for
+    `http://vouchryx.internal/v1/token` could have verified too without
+    anything here noticing. RFC 9110 methods are case sensitive. RFC 9449
+    section 4.3 asks for the scheme and host rule of RFC 3986 section
+    6.2.2.1, which also folds the case of percent-encoding hex digits;
+    comparing the path without that fold is a stricter choice section 4.3
+    permits rather than forbids, since it states its own normalisations as a
+    SHOULD, and it is what keeps `/v1%2Ftoken` from matching `/v1/token`. The
+    method compares exactly now; the URL is parsed with `net/url`, the scheme
+    and the host fold and nothing else does, and either side failing to
+    parse or naming no scheme or host refuses rather than comparing empty
+    strings as equal.
+    *(test: `TestTheMethodBindingIsCaseSensitive`,
+    `TestThePathBindingIsCaseSensitive`,
+    `TestAProofForAnotherHostOrSchemeIsRefused`,
+    `TestAnEscapedPathSeparatorDoesNotMatchADecodedOne`,
+    `TestTheSchemeAndHostStillFoldCase` as the control that keeps this from
+    over-refusing, and `TestARelativeOrUnparseableHtuIsRefused`; mutants
+    restoring `EqualFold` on the method, folding `EscapedPath` itself,
+    folding the host to a bare `true`, folding the scheme to a bare `true`,
+    and comparing the decoded `Path` instead of `EscapedPath` were each
+    caught by name)*
+
+    **The algorithm name promised a curve it never checked.** `allowed` bounds
+    the key TYPE, and nothing bounded which CURVE a name like `ES256` may be
+    used with, so a P-384 key verified under `alg: ES256` with its own 96-byte
+    signature, `SignES256` signed with whatever curve it was handed, and
+    `curveName` labelled every curve that is not P-384 as `P-256`, which made
+    `FromPublic` publish a P-521 key advertising itself as `crv: P-256`.
+    `ES256` now requires a P-256 key and a 64-byte signature, `ES384` a P-384
+    key and a 96-byte signature, `SignES256` refuses any other curve, and
+    `curveName` returns an empty string for a curve it does not name, which
+    `FromPublic` treats as the same refusal it already gives an unencodable
+    key, naming the algorithm from the curve instead of the constant `ES256`.
+    *(test: `TestES256RefusesAP384KeyAndItsNinetySixByteSignature` and
+    `TestES384RefusesAP256Key` for both directions,
+    `TestACorrectlySignedEs384TokenStillVerifies` and
+    `TestTheThumbprintDoesNotMoveWhenAlgDoes` as controls,
+    `TestSignES256RefusesEveryCurveButP256`, `TestFromPublicRefusesAP521Key`,
+    `TestFromPublicNamesTheAlgorithmFromTheCurve`,
+    `TestAShortECSignatureIsRefusedRatherThanPanicking` for the
+    signature-length guard beside the curve check, and from the DPoP side
+    `TestADPoPProofCarryingAP384KeyIsRefusedUnderTheNameES256`, which since
+    the second-model review also pins `VerifyWith`'s own reason as
+    `ErrAlgNotAllowed` rather than only asserting a refusal; mutants deleting
+    the curve check, reverting `curveName`'s fallback, letting `SignES256`
+    sign any curve, and deleting the signature-length check (a panic slicing
+    a too-short signature, not a normal failure) were each caught by name)*
+
+    **A snapshot missing its list was read as a complete, empty one.**
+    `ParseSnapshot` accepted a body with no `revocations` member, a `null`
+    one, or one holding a `null` entry, each as zero valid revocations, and
+    `Install` then replaced the held list with it, so a known revocation
+    answered `Basis:absent` rather than staying held. Invariant 19's line
+    between a synchronised empty list and an unanswerable miss depends on the
+    list actually being read, not assumed. `ParseSnapshot` now requires a
+    present, non-null `revocations` array whose every element opens a JSON
+    object, and refuses otherwise before `Install` ever sees it.
+    *(test: `TestAMalformedRevocationsMemberCannotEraseAKnownRevocation`, all
+    three malformed bodies refused and a cache seeded with a known revocation
+    still answering `Revoked:true` after each attempted install; mutants
+    removing the presence/null check and the per-element check were each
+    caught; scenarios in `features/proof-binding-and-key-shape.feature`)*
+
+    @decided 2026-09-17: the four findings F3, F4, F6 and F7 of that review
+    (two MEDIUM, two LOW) are closed as measured. No exported identifier
+    changed; `api/surface.txt` is unchanged at 143 declarations.

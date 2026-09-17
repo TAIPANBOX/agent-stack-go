@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"math/big"
 	"testing"
 	"time"
@@ -282,5 +283,174 @@ func TestAProofCarryingAnOversizedRsaKeyIsRefusedBeforeAnyArithmetic(t *testing.
 	if took > 100*time.Millisecond {
 		t.Fatalf("refusing the proof took %v, which means the oversized modulus was exponentiated "+
 			"rather than refused at the door", took)
+	}
+}
+
+// F3 (2026-09-17 delegation review): remember pruned an entry Window after
+// the moment it was first seen rather than Window after the iat it was seen
+// with, so a proof presented up to Window ahead of now was forgotten before
+// its own freshness ran out and could then be replayed for as long as that
+// freshness had left. Swept over every integer skew because the bug was in
+// the boundary itself, not in one instance of it.
+func TestAFutureDatedProofIsRememberedUntilItsOwnFreshnessEnds(t *testing.T) {
+	k := newKey(t)
+	now := time.Unix(1800000000, 0)
+	for skew := 1; skew <= 60; skew++ {
+		v := NewVerifier()
+		p := proof(t, k, FromPublic(&k.PublicKey, ""), map[string]any{
+			"htm": method, "htu": url, "iat": now.Unix() + int64(skew), "jti": "same-proof",
+		}, "dpop+jwt")
+		if _, err := v.Check(p, method, url, now); err != nil {
+			t.Fatalf("skew=%d: the first presentation was refused: %v", skew, err)
+		}
+		if _, err := v.Check(p, method, url, now.Add(61*time.Second)); !errors.Is(err, ErrReplay) {
+			t.Fatalf("skew=%d: replayed at +61s instead of being remembered: %v", skew, err)
+		}
+		lastFresh := now.Add(Window + time.Duration(skew)*time.Second)
+		if _, err := v.Check(p, method, url, lastFresh); !errors.Is(err, ErrReplay) {
+			t.Fatalf("skew=%d: not remembered at its own last fresh instant %v: %v", skew, lastFresh, err)
+		}
+		pastFresh := lastFresh.Add(time.Second)
+		if _, err := v.Check(p, method, url, pastFresh); !errors.Is(err, ErrStale) {
+			t.Fatalf("skew=%d: accepted or misclassified one second past its last fresh instant: %v", skew, err)
+		}
+	}
+}
+
+// The other direction: an entry must not outlive its own freshness either.
+// Read under v.mu the way TestTheSeenSetDoesNotGrowWithoutBound does, since
+// the seen-set has no other way to be inspected from outside the package.
+func TestABackwardDatedProofIsForgottenNoLaterThanItsOwnFreshnessEnds(t *testing.T) {
+	k := newKey(t)
+	now := time.Unix(1800000000, 0)
+	v := NewVerifier()
+	backJti := "back-dated"
+	p := proof(t, k, FromPublic(&k.PublicKey, ""), map[string]any{
+		"htm": method, "htu": url, "iat": now.Add(-30 * time.Second).Unix(), "jti": backJti,
+	}, "dpop+jwt")
+	if _, err := v.Check(p, method, url, now); err != nil {
+		t.Fatalf("the backward-dated proof was refused at its first presentation: %v", err)
+	}
+
+	later := now.Add(31 * time.Second)
+	// Any presentation at `later` sweeps the seen-set with `later` as the
+	// clock, which is what actually prunes it; nothing prunes on a timer.
+	other := proof(t, k, FromPublic(&k.PublicKey, ""), map[string]any{
+		"htm": method, "htu": url, "iat": later.Unix(), "jti": "other",
+	}, "dpop+jwt")
+	if _, err := v.Check(other, method, url, later); err != nil {
+		t.Fatalf("an unrelated proof at %v was refused: %v", later, err)
+	}
+
+	v.mu.Lock()
+	_, stillHeld := v.seen[backJti]
+	v.mu.Unlock()
+	if stillHeld {
+		t.Fatalf("the backward-dated proof was still in the seen-set at %v, past its own freshness", later)
+	}
+
+	if _, err := v.Check(p, method, url, later); !errors.Is(err, ErrStale) {
+		t.Fatalf("the backward-dated proof was not refused as stale at %v: %v", later, err)
+	}
+}
+
+// F6 (2026-09-17 delegation review): EqualFold ran over the whole method and
+// the whole URL. RFC 9110 methods are case sensitive, so a proof bound to
+// POST must not also verify a request logged as post or Post.
+func TestTheMethodBindingIsCaseSensitive(t *testing.T) {
+	k := newKey(t)
+	now := time.Now()
+	for _, got := range []string{"post", "Post", "POst"} {
+		if _, err := NewVerifier().Check(good(t, k, now), got, url, now); !errors.Is(err, ErrBinding) {
+			t.Errorf("method %q verified a proof bound to %s: %v", got, method, err)
+		}
+	}
+}
+
+// RFC 9449 section 4.3 asks for the scheme and host rule of RFC 3986 section
+// 6.2.2.1: the scheme and the host fold case. The path does not, so a proof
+// for /v1/token must not verify /v1/TOKEN.
+func TestThePathBindingIsCaseSensitive(t *testing.T) {
+	k := newKey(t)
+	now := time.Now()
+	for _, got := range []string{"https://vouchryx.internal/v1/TOKEN", "/V1/token"} {
+		if _, err := NewVerifier().Check(good(t, k, now), method, got, now); !errors.Is(err, ErrBinding) {
+			t.Errorf("url %q verified a proof bound to %s: %v", got, url, err)
+		}
+	}
+}
+
+// The control: scheme and host still fold, or the fix over-refuses an
+// honest client sitting behind a load balancer that upcases its own host.
+func TestTheSchemeAndHostStillFoldCase(t *testing.T) {
+	k := newKey(t)
+	now := time.Now()
+	if _, err := NewVerifier().Check(good(t, k, now), method, "HTTPS://VOUCHRYX.INTERNAL/v1/token", now); err != nil {
+		t.Fatalf("folding the scheme and host broke an honest client: %v", err)
+	}
+}
+
+// A claimed htu that is relative, or that net/url cannot parse at all, binds
+// to nothing rather than to everything: sameURL must refuse it rather than
+// let an empty comparison pass by accident.
+func TestARelativeOrUnparseableHtuIsRefused(t *testing.T) {
+	k := newKey(t)
+	now := time.Now()
+	for _, claimed := range []string{"/v1/token", "https://[::1/v1/token"} {
+		p := proof(t, k, FromPublic(&k.PublicKey, ""), map[string]any{
+			"htm": method, "htu": claimed, "iat": now.Unix(), "jti": "bad-htu",
+		}, "dpop+jwt")
+		if _, err := NewVerifier().Check(p, method, url, now); !errors.Is(err, ErrBinding) {
+			t.Errorf("claimed htu %q was not refused as a binding mismatch: %v", claimed, err)
+		}
+	}
+}
+
+// F7 confirmed from the DPoP side: a P-384 key claiming ES256 must be
+// refused here too, not only by VerifyToken. Check does not surface which
+// check inside VerifyWith failed (every such failure comes back as
+// ErrSignature, on purpose: see the package doc), so the refusal is asserted
+// at Check and the reason, ErrAlgNotAllowed, is pinned on VerifyWith directly.
+func TestADPoPProofCarryingAP384KeyIsRefusedUnderTheNameES256(t *testing.T) {
+	k384 := ecKeyOnCurve(t, elliptic.P384())
+	now := time.Now()
+	p := proof(t, k384, FromPublic(&k384.PublicKey, ""), map[string]any{
+		"htm": method, "htu": url, "iat": now.Unix(), "jti": "p384",
+	}, "dpop+jwt")
+	if _, err := NewVerifier().Check(p, method, url, now); err == nil {
+		t.Fatal("a P-384 key verified a DPoP proof under the name ES256")
+	}
+	// Pinned at the layer that can name it: VerifyWith is what Check calls
+	// internally, and unlike Check it does not collapse the reason to
+	// ErrSignature, so the same proof asked here must say ErrAlgNotAllowed.
+	if _, err := VerifyWith(p, FromPublic(&k384.PublicKey, "")); !errors.Is(err, ErrAlgNotAllowed) {
+		t.Fatalf("VerifyWith did not refuse the same proof as ErrAlgNotAllowed: %v", err)
+	}
+}
+
+// Second-model review, 2026-09-17: nothing asserted the host or the scheme
+// on their own. Folding strings.EqualFold(pa.Host, pb.Host) to a bare true,
+// or the scheme fold to a bare true, passes the whole suite without this: a
+// proof captured for one host or scheme must not verify a request to
+// another.
+func TestAProofForAnotherHostOrSchemeIsRefused(t *testing.T) {
+	k := newKey(t)
+	now := time.Now()
+	for _, got := range []string{"https://evil.internal/v1/token", "http://vouchryx.internal/v1/token"} {
+		if _, err := NewVerifier().Check(good(t, k, now), method, got, now); !errors.Is(err, ErrBinding) {
+			t.Errorf("url %q verified a proof bound to %s: %v", got, url, err)
+		}
+	}
+}
+
+// Second-model review, 2026-09-17: EscapedPath, not the decoded Path.
+// /v1%2Ftoken and /v1/token decode to the identical Path but are different
+// requests on the wire; comparing the decoded form would treat an escaped
+// path separator as though it were a literal one.
+func TestAnEscapedPathSeparatorDoesNotMatchADecodedOne(t *testing.T) {
+	k := newKey(t)
+	now := time.Now()
+	if _, err := NewVerifier().Check(good(t, k, now), method, "https://vouchryx.internal/v1%2Ftoken", now); !errors.Is(err, ErrBinding) {
+		t.Fatalf("an escaped path separator verified a proof bound to a literal one: %v", err)
 	}
 }

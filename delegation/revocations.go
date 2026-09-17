@@ -167,6 +167,13 @@ type Snapshot struct {
 // are accepted on purpose: entries carry `actor` and `reason` this consumer has
 // no use for, and refusing a member vouchryx adds later would make every
 // consumer a release blocker.
+//
+// It also refuses a `revocations` member that is missing, null, or holds a
+// null element: each of those unmarshals into an empty or short []Revocation
+// with no error from encoding/json alone, and Install would then replace a
+// complete held list with that one. A synchronized, genuinely empty list
+// still unmarshals as `[]Revocation{}` and is accepted, which is what tells
+// the two apart.
 func ParseSnapshot(raw []byte) (Snapshot, error) {
 	var probe any
 	if err := json.Unmarshal(raw, &probe); err != nil {
@@ -175,11 +182,51 @@ func ParseSnapshot(raw []byte) (Snapshot, error) {
 	if _, ok := probe.(map[string]any); !ok {
 		return Snapshot{}, errors.New("delegation: a revocations body is a JSON object with revocations and as_of")
 	}
+
+	var members map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &members); err != nil {
+		return Snapshot{}, fmt.Errorf("delegation: revocation list has the wrong shape: %w", err)
+	}
+	var list []json.RawMessage
+	if rawList, present := members["revocations"]; present {
+		if err := json.Unmarshal(rawList, &list); err != nil {
+			return Snapshot{}, fmt.Errorf("delegation: revocations is not a JSON array: %w", err)
+		}
+	}
+	if list == nil {
+		// Absent and explicitly null both decode a slice to nil; a JSON `[]`
+		// decodes to a non-nil, zero-length slice instead, which is the
+		// distinction TestAnEmptyListIsAListAndNotAFailure depends on.
+		return Snapshot{}, errors.New("delegation: a revocations body needs a revocations array, and a missing or null one is not one")
+	}
+	for _, entry := range list {
+		if !looksLikeJSONObject(entry) {
+			return Snapshot{}, errors.New("delegation: a revocations entry must be a JSON object")
+		}
+	}
+
 	var s Snapshot
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return Snapshot{}, fmt.Errorf("delegation: revocation list has the wrong shape: %w", err)
 	}
 	return s, nil
+}
+
+// looksLikeJSONObject reports whether raw's first non-whitespace byte opens a
+// JSON object. Good enough to refuse `null` and a bare scalar as a
+// revocations entry without a second full unmarshal: what happens after an
+// opening `{` is exactly what unmarshaling into Snapshot below already
+// checks.
+func looksLikeJSONObject(raw json.RawMessage) bool {
+	for _, b := range raw {
+		switch b {
+		case ' ', '\t', '\n', '\r':
+			continue
+		default:
+			return b == '{'
+		}
+	}
+	return false
 }
 
 // FailMode is what an unanswerable miss means, chosen by the operator.
