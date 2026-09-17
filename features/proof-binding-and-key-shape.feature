@@ -1,7 +1,8 @@
 Feature: A DPoP proof means exactly what it claims, and a key's curve matches its algorithm's name
 
-  Measured 2026-09-17 with this package's own tests below, red at `da26c65`
-  and green at `222702f`: the 2026-09-17 delegation review's probe suite
+  Measured 2026-09-17 with the finding-closing tests below (the controls and
+  the mutant-catching tests never were red), red at `da26c65` and green at
+  `222702f`: the 2026-09-17 delegation review's probe suite
   (TestCodexReplayWindowRemembersFutureDatedProofUntilItExpires,
   TestCodexDPoPBindingPreservesCaseSensitivePathAndMethod,
   TestCodexInvariant1ES256MustNotAcceptP384Key,

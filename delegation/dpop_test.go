@@ -367,9 +367,9 @@ func TestTheMethodBindingIsCaseSensitive(t *testing.T) {
 	}
 }
 
-// RFC 9449 section 4.3 read with RFC 3986 section 6.2.2.1: only the scheme
-// and the host fold case. The path does not, so a proof for /v1/token must
-// not verify /v1/TOKEN.
+// RFC 9449 section 4.3 asks for the scheme and host rule of RFC 3986 section
+// 6.2.2.1: the scheme and the host fold case. The path does not, so a proof
+// for /v1/token must not verify /v1/TOKEN.
 func TestThePathBindingIsCaseSensitive(t *testing.T) {
 	k := newKey(t)
 	now := time.Now()
@@ -409,8 +409,8 @@ func TestARelativeOrUnparseableHtuIsRefused(t *testing.T) {
 // F7 confirmed from the DPoP side: a P-384 key claiming ES256 must be
 // refused here too, not only by VerifyToken. Check does not surface which
 // check inside VerifyWith failed (every such failure comes back as
-// ErrSignature, on purpose: see the package doc), so this asserts only that
-// it is refused, the same way the other proof-forgery tests in this file do.
+// ErrSignature, on purpose: see the package doc), so the refusal is asserted
+// at Check and the reason, ErrAlgNotAllowed, is pinned on VerifyWith directly.
 func TestADPoPProofCarryingAP384KeyIsRefusedUnderTheNameES256(t *testing.T) {
 	k384 := ecKeyOnCurve(t, elliptic.P384())
 	now := time.Now()

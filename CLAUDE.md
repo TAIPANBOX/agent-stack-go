@@ -621,8 +621,9 @@ refactors that keep every exported signature identical, and additions to
 
 24. **A verifier that resolves an ambiguous boundary toward acceptance has
     chosen the attacker's reading, even when nothing else about the check is
-    wrong.** Measured 2026-09-17 with this package's own tests named below,
-    red at `da26c65` and green at `222702f`: the 2026-09-17 delegation
+    wrong.** Measured 2026-09-17 with the finding-closing tests named below
+    (the controls and the mutant-catching tests never were red), red at
+    `da26c65` and green at `222702f`: the 2026-09-17 delegation
     review's probe suite (`TestCodexReplayWindowRemembersFutureDatedProofUntilItExpires`,
     `TestCodexDPoPBindingPreservesCaseSensitivePathAndMethod`,
     `TestCodexInvariant1ES256MustNotAcceptP384Key`,
