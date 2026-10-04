@@ -813,6 +813,10 @@ refactors that keep every exported signature identical, and additions to
     `TestTheImageJobPublishesOnATagOnlyAndSignsWhatItPublishes` and
     `TestTheDockerfileIsStaticNonRootAndNamesTheCommand` read the workflow and
     the Dockerfile as text, since the module has no YAML dependency, after
-    `TestJobBlockFindsAPlantedJobAndNothingElse` proves the reader. Not
+    `TestJobBlockFindsAPlantedJobAndNothingElse` proves the reader; five
+    mutants of `release.yml` (the push guard dropped, the signing step
+    replaced, the Dockerfile left out of the pull_request paths, a moving
+    `latest` tag, the no-push build set to push) were each caught by the first
+    of them on 2026-10-04. Not
     enforced: that a published image's bytes rebuild identically. Invariant 11
     claims that for the archives only.)*
