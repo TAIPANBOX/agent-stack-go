@@ -454,7 +454,7 @@ its own stream with the library's own `ChainedWriter`:
 | Event | Severity | When | `data` |
 |---|---|---|---|
 | `chain_broken` | high | a `prev_hash` does not match the line before it | `file`, `line` (the first such line), `kind` (`prev_hash_mismatch`), `breaks` (how many), `restarts`, `malformed_lines`, `unverifiable_links`, `expected`/`found` (clipped), `verifier` |
-| `chain_unchained` | low | two or more events and not one carries a `prev_hash` | `file`, `kind` (`no_prev_hash`), `events`, `verifier` |
+| `chain_unchained` | low | two or more events and not one carries a `prev_hash` | `file`, `kind` (`no_prev_hash`), `events`, `malformed_lines`, `unverifiable_links`, `verifier` |
 
 An unchained stream is not a broken one: the field is optional by SPEC 6.5. It
 is reported once so the operator knows which streams nobody can verify. A
@@ -678,7 +678,7 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go@v1.0.2`), never a local
   in `features/contract-1.0.feature`, each bound to its test
 - [x] `agent-conform watch-dir` (agent-stack-go#64): the chain verifier for a
   box, with its scenarios in `features/watch-dir.feature`, and the
-  `ghcr.io/taipanbox/agent-conform` image built by `release.yml` on a `v*` tag
+  `ghcr.io/taipanbox/agent-conform:<tag>` image built by `release.yml` on a `v*` tag
   (see [Running the chain verifier on a box](#running-the-chain-verifier-on-a-box-agent-conform-watch-dir))
 
 This module's package set (`passport`, `event`, `chain`) covers everything the
