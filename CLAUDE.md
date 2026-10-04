@@ -109,6 +109,7 @@ go build ./...
 ./scripts/deps-layering.sh
 ./scripts/api-surface.sh
 ./scripts/features-are-bound.sh
+./scripts/base-images-pinned-by-digest.sh
 ./scripts/schemas-in-sync.sh   # needs TAIPANBOX/agent-passport checked out beside this repo
 ./scripts/readme-numbers.sh
 ./scripts/reproducible-build.sh
@@ -240,6 +241,11 @@ had one, is worse than an absent invariant.
     measured against real published artifacts in qryx and idryx on 2026-08-05,
     each rebuilding to its release byte for byte from a different host OS.)*
 
+    Since the image (invariant 26) the first half also reads the `Dockerfile`'s
+    `go build` line, comment lines dropped, and refuses the same three flags
+    missing there. The Dockerfile names them in prose above the build line, so a
+    check that read the prose would pass on a build line that had lost them.
+
     The first half was added on 2026-08-05 because the sentence above claimed
     the two files agree and nothing compared them. The script kept all three
     flags, so it kept passing, and it would have gone on passing while the
@@ -313,15 +319,20 @@ had one, is worse than an absent invariant.
     harness version differ only in how many layers of quoting sit between the
     text and python. So every mutation asserts it applied: a case whose edit
     changed nothing is a failure, not a pass.
-    *(gate: `scripts/gates-have-teeth.sh`, 22 cases: ten real faults each gate
-    must catch, five non-faults they must not, and seven subjects taken away
+    *(gate: `scripts/gates-have-teeth.sh`, 31 cases: sixteen real faults each
+    gate must catch, six non-faults they must not, and nine subjects taken away
     entirely, where the gate must say it measured nothing rather than report
     OK. It said 12 until `features-are-bound.sh` arrived on 2026-08-26 with four
     cases of its own, it said 16 until the version-badge half of
     `readme-numbers.sh` arrived on 2026-09-03 with two cases of its own, and it
     said 18 until `api-surface.sh` arrived on 2026-09-12 with four, which is
     invariant 12's shape inside the file that holds it: the count is updated in
-    the commit that changes it, because somebody looks.
+    the commit that changes it, because somebody looks. It said 22 until
+    2026-10-04, when it was found to run 26: the four `door-and-record-agree.sh`
+    cases had been added without the count, and sat below the check that turns a
+    failed case into a failed run, so they could never have failed it. They sit
+    above it now, and the image gate and the Dockerfile half of
+    `reproducible-build.sh` brought five of their own.
     `./scripts/gates-have-teeth.sh | grep -c '^ok '` is the command. The third non-fault arrived on 2026-08-26 and is the first here that
     runs a gate under a HOOK'S ENVIRONMENT rather than in a plain shell,
     because the fault it pins exists only there: `schemas-in-sync.sh` reads
@@ -720,3 +731,92 @@ refactors that keep every exported signature identical, and additions to
     @decided 2026-09-17: the four findings F3, F4, F6 and F7 of that review
     (two MEDIUM, two LOW) are closed as measured. No exported identifier
     changed; `api/surface.txt` is unchanged at 143 declarations.
+
+25. **A chain verifier that runs on a box writes only its own output and its
+    own state, and never reports a bus it did not read as clean.** Measured
+    2026-09-17 (agent-stack-go#64): a byte flipped on a sealed line of the
+    shared events bus was seen by nothing, because `agent-conform -chain`
+    existed as source and archives and nothing on the box ran it.
+    `agent-conform watch-dir <dir>` walks one flat directory (not recursive; a
+    symlink is skipped, never followed), verifies every `*.ndjson` with
+    `event.VerifyChain`, and appends one event per NEW finding to its own
+    stream with `event.ChainedWriter`: `chain_broken` (high) naming the file,
+    the first break's line and the kind of break, `chain_unchained` (low) for a
+    stream of two or more events with no `prev_hash` at all. Each
+    `(file, kind, line)` is announced once, remembered in a state file that is
+    saved after the event is written, so a crash costs a duplicate and never an
+    alert. Exit 0 nothing new, 1 a new break, 2 usage or I/O error, and 2 wins.
+
+    Three properties are the invariant, because each fails in silence if lost:
+    it opens every stream read-only and its only writes are `-out` (which must
+    be named `agent-conform.ndjson`, so its name is the source its events claim
+    and it cannot be aimed at another writer's stream) and `-state` (which may
+    not look like a stream); a missing, empty or unreadable bus, a file over the
+    byte cap and a line over the line cap are exit 2 and never a pass, while a
+    break found before the oversize line is still alerted; and nothing from
+    inside a file reaches an alert but two hash strings clipped to 96 bytes, so
+    a forged `prev_hash` does not choose how big the bus's next line is.
+    `-every` loops in one process for an image with no shell, and exits 2 the
+    moment a pass cannot do its job so a supervisor shows the failure.
+    *(test: `TestWatchDirOneFlippedByteInAMiddleLineIsChainBrokenAtTheRightLine`,
+    `TestWatchDirASecondRunDoesNotAlertAgainForTheSameBreak`,
+    `TestWatchDirAnUnchainedFileIsReportedOnceAtLowAndNotAsBroken`,
+    `TestWatchDirAnEmptyOrMissingDirectoryIsAnErrorNotASilentPass`,
+    `TestWatchDirNeverModifiesAFileItReads`,
+    `TestWatchDirRefusesAnOutputThatIsAnotherWritersStream`,
+    `TestWatchDirSurvivesHostileInput`,
+    `TestWatchDirCapsTheBytesItReadsPerFile`,
+    `TestWatchDirAnOversizeClaimedPrevHashDoesNotInflateTheAlert`,
+    `TestWatchDirAnAlertThatFailedToWriteIsNotRecordedAsReported`,
+    `TestWatchDirThroughTheRealBinaryExitsWithTheDocumentedCodes`; scenarios in
+    `features/watch-dir.feature`, each bound to a named test and held by
+    invariant 20. Twenty-three mutants of `watchdir.go` and `main.go` were planted on
+    2026-10-04 and each was caught by a named test, among them the last break
+    reported instead of the first, the dedup switched off, the state key
+    ignoring the line, a failed write recorded as sent, the byte and line caps
+    removed, `-out` accepting any name, exit 1 winning over exit 2, and a
+    symlink followed as a stream.)*
+
+    **Where it says nothing.** `prev_hash` is tamper-evidence (invariant 8): a
+    writer compromised in its own uid forges its own stream with a valid chain,
+    and truncation from the end changes no hash. Only a genuine mismatch is a
+    break (invariant 7), so a line whose `prev_hash` was stripped reads as a
+    restart and a line replaced by garbage leaves the next one unverifiable;
+    both are counted in the alert and neither raises one, because a crash in the
+    middle of a write makes the second shape and an alert that cried wolf on it
+    would be switched off. Only the first break per file is announced, and a
+    break at the same line after a repair is not announced again.
+    *(not enforced beyond the tests above; those are named limits and not
+    defects)*
+
+    @decided 2026-10-04: the estate closes the gap named in agent-stack-go#64
+    with a verifier that runs on the box and emits its finding onto the bus.
+    This invariant is the library side of that. The launchers' half (the
+    routine, the uid, the file it owns on the bus) is a change in each launcher.
+
+26. **The published image is built from pinned inputs with the release flags,
+    and it publishes from a tag and from nothing else.** `Dockerfile` builds
+    `agent-conform` static (`CGO_ENABLED=0`, `-trimpath`, `-s -w`) onto
+    `gcr.io/distroless/static-debian12` as uid 65532, both bases named by
+    digest: a tag can move under an operator without anybody choosing that, a
+    digest cannot. `release.yml` builds it on a pull request that touches the
+    Dockerfile or the workflow and pushes nothing; the job that pushes is guarded
+    by `if: github.event_name == 'push'` by name, so a pull_request trigger
+    reaching it later still publishes nothing (estate-gates C17), and it signs
+    the pushed digest keyless and attests provenance, the same two moves the
+    archives get. There is no `latest`.
+    *(gate: `scripts/base-images-pinned-by-digest.sh`, and the Dockerfile half of
+    `scripts/reproducible-build.sh`, with four cases in `gates-have-teeth.sh`: a
+    FROM losing its digest, an unrelated label edit which must NOT fire, no
+    Dockerfile left to read, and a build line that lost a flag while the
+    prose above it still names it. test:
+    `TestTheImageJobPublishesOnATagOnlyAndSignsWhatItPublishes` and
+    `TestTheDockerfileIsStaticNonRootAndNamesTheCommand` read the workflow and
+    the Dockerfile as text, since the module has no YAML dependency, after
+    `TestJobBlockFindsAPlantedJobAndNothingElse` proves the reader; five
+    mutants of `release.yml` (the push guard dropped, the signing step
+    replaced, the Dockerfile left out of the pull_request paths, a moving
+    `latest` tag, the no-push build set to push) were each caught by the first
+    of them on 2026-10-04. Not
+    enforced: that a published image's bytes rebuild identically. Invariant 11
+    claims that for the archives only.)*

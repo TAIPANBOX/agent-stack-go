@@ -56,6 +56,16 @@
 // Exit code 0 means every file -- and every line within an event stream --
 // conforms to its schema. Exit code 1 means at least one did not, or a file
 // could not be read or parsed as JSON at all.
+//
+// A second mode runs on a box instead of on a payload:
+//
+//	agent-conform watch-dir [flags] <dir>
+//
+// It verifies the prev_hash chain of every *.ndjson in one flat directory
+// (the shared events bus) and appends one agent-event per newly found break
+// to its own stream, so a tampered line is seen by something that alerts.
+// It is a different job with its own exit codes (0 nothing new, 1 a new break
+// reported, 2 usage or I/O error), written up at the top of watchdir.go.
 package main
 
 import (
@@ -109,11 +119,16 @@ func main() {
 		case "-chain":
 			chain = true
 			args = args[1:]
+		case "watch-dir":
+			// A different job with its own flags and exit codes: it walks a
+			// directory and WRITES, which no other mode here does. See watchdir.go.
+			os.Exit(runWatchDir(args[1:], os.Stdout, os.Stderr))
 		case "-version", "--version", "version":
 			fmt.Printf("agent-conform %s\n", version)
 			return
 		case "-h", "-help", "--help":
 			fmt.Println("usage: agent-conform [-chain] <file>...")
+			fmt.Println("       agent-conform watch-dir [flags] <dir>")
 			fmt.Println()
 			fmt.Println("Validates passports and event envelopes against the embedded schemas.")
 			fmt.Println("  -chain      also check both chains in an event stream, reported apart:")
@@ -123,6 +138,10 @@ func main() {
 			fmt.Println("  -version    print the version and exit")
 			fmt.Println()
 			fmt.Println("Exit codes: 0 conformant, 1 not conformant, 2 could not be read.")
+			fmt.Println()
+			fmt.Println("watch-dir <dir> verifies the prev_hash chain of every *.ndjson in one flat")
+			fmt.Println("directory and appends an agent-event per NEW problem to its own stream; run")
+			fmt.Println("'agent-conform watch-dir -h' for its flags and exit codes.")
 			return
 		default:
 			goto parsed
@@ -131,6 +150,7 @@ func main() {
 parsed:
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "usage: agent-conform [-chain] <file>...")
+		fmt.Fprintln(os.Stderr, "       agent-conform watch-dir [flags] <dir>")
 		os.Exit(2)
 	}
 

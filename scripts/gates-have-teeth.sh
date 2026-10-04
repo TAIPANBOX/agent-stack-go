@@ -202,6 +202,20 @@ run_case "reproducible-build: a version back in the asset name" fail \
 	"$(py 'edit(".github/workflows/release.yml", "out=\"agent-conform_", "out=\"agent-conform_${VERSION}_")')" \
 	"carries the version"
 
+# invariant 11, the image half: the Dockerfile's build line names the same three
+# flags. The Dockerfile's own comment still says "-trimpath" in prose after this
+# edit, which is the point: a check that read the prose would pass.
+run_case "reproducible-build: the Dockerfile loses a build flag" fail \
+	'./scripts/reproducible-build.sh' \
+	"$(py 'edit("Dockerfile", "go build -trimpath", "go build")')" \
+	"builds the image without"
+
+# invariant 26: a base image pinned by a tag can move under an operator.
+run_case "base-images: a FROM loses its digest and falls back to a moving tag" fail \
+	'./scripts/base-images-pinned-by-digest.sh' \
+	"$(py 'edit("Dockerfile", "golang@sha256:3680233e3204827fbdc66088528ae6d4b3d034f51d03a99d454f6de034888244", "golang:1.27")')" \
+	"names no @sha256:"
+
 # invariant 13: a vendored copy that drifted from the owner of the contract.
 # This check reads ANOTHER repository, and git hands a hook GIT_DIR pointing at
 # the repository being pushed. `git -C <elsewhere>` keeps that variable, so
@@ -273,6 +287,11 @@ run_case "features-are-bound: a test named in prose rather than in a binding" pa
 	'./scripts/features-are-bound.sh' \
 	"$(py 'edit("features/revocation.feature", "  # @test:TestATokenTheListDoesNotNameIsNotRefused", "  # See also TestSomethingThatDoesNotExistAtAll below.\n  # @test:TestATokenTheListDoesNotNameIsNotRefused")')"
 
+# An edit to the image's metadata that leaves every FROM pinned is not a fault.
+run_case "base-images: an unrelated label changes, digests untouched" pass \
+	'./scripts/base-images-pinned-by-digest.sh' \
+	"$(py 'edit("Dockerfile", "org.opencontainers.image.title=\"agent-conform\"", "org.opencontainers.image.title=\"agent-conform\" ")')"
+
 run_case "readme-numbers: a badge-shaped number elsewhere in the README" pass \
 	'./scripts/readme-numbers.sh' \
 	"$(py 'edit("README.md", "## ", "Once badge/tests-11- was the figure, long ago.\n\n## ")')"
@@ -330,6 +349,17 @@ run_case "reproducible-build: no build command left to read" fail \
 	"$(py 'edit(".github/workflows/release.yml", "go build -trimpath", "go vet -trimpath")')" \
 	"no 'go build' command found"
 
+run_case "base-images: no Dockerfile left to read" fail \
+	'./scripts/base-images-pinned-by-digest.sh' \
+	"$(py 'import subprocess
+subprocess.run(["git", "rm", "-q", "Dockerfile"], check=True)')" \
+	"measures nothing"
+
+run_case "reproducible-build: no image build command left to read" fail \
+	'./scripts/reproducible-build.sh' \
+	"$(py 'edit("Dockerfile", "go build -trimpath", "go vet -trimpath")')" \
+	"no 'go build' command found in Dockerfile"
+
 run_case "schemas-in-sync: no vendored copy left to compare" fail \
 	'./scripts/schemas-in-sync.sh' \
 	"$(py 'import subprocess
@@ -344,20 +374,6 @@ for f in out:
         n += 1
 assert n, "no schema-shaped file tracked in this repo"')" \
 	"measured nothing"
-
-echo
-if [ -n "$(git status --porcelain)" ]; then
-	printf 'FAIL: this script left the tree dirty, so it cannot be trusted about anything above\n'
-	git status --porcelain | head -5
-	exit 1
-fi
-
-if [ "$failures" -gt 0 ]; then
-	printf '%d of %d cases failed.\n' "$failures" "$cases"
-	printf 'A gate that has quietly stopped catching anything looks exactly like a gate\n'
-	printf 'with nothing to catch, and stays that way until the fault it guards ships.\n'
-	exit 1
-fi
 
 # --- the door and the record agree ------------------------------------------
 
@@ -390,6 +406,20 @@ run_case "door-and-record: a rule renamed on BOTH sides" pass \
 	"./scripts/door-and-record-agree.sh" \
 	"$(py 'edit_all("chain/chain.go", "ErrCycle", "ErrLoop")
 edit_all("delegation/chain.go", "ErrCycle", "ErrLoop")')"
+
+echo
+if [ -n "$(git status --porcelain)" ]; then
+	printf 'FAIL: this script left the tree dirty, so it cannot be trusted about anything above\n'
+	git status --porcelain | head -5
+	exit 1
+fi
+
+if [ "$failures" -gt 0 ]; then
+	printf '%d of %d cases failed.\n' "$failures" "$cases"
+	printf 'A gate that has quietly stopped catching anything looks exactly like a gate\n'
+	printf 'with nothing to catch, and stays that way until the fault it guards ships.\n'
+	exit 1
+fi
 
 printf 'OK: %d cases. Every gate fails on its own fault, passes on a non-fault,\n' "$cases"
 printf '    and refuses to report success when it measured nothing.\n'
