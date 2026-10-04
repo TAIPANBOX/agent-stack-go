@@ -7,7 +7,7 @@
 [![CI](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml/badge.svg)](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go)
 ![Go](https://img.shields.io/badge/go-1.27-00ADD8.svg)
-![tests](https://img.shields.io/badge/tests-218-brightgreen.svg)
+![tests](https://img.shields.io/badge/tests-248-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-v1.0.2-success.svg)
 
@@ -431,6 +431,165 @@ is a property of how a chain was built, one entry appended per hop, and a list
 of URIs after the fact carries nothing that could distinguish a root-first
 chain from a reversed one.
 
+## Running the chain verifier on a box: `agent-conform watch-dir`
+
+`agent-conform -chain <file>` names a broken `prev_hash` chain, but only to
+whoever ran it. On the 2026-09-17 appliance run one byte flipped on a sealed
+line of the shared events bus was seen by nothing, because the tool existed as
+source and archives and nothing on the box ran it. `watch-dir` is the same
+verification (`event.VerifyChain`, the library's own) as a mode that runs on a
+schedule and **alerts**: a break becomes an event on the bus, where the
+notifier and the console already look.
+
+```sh
+agent-conform watch-dir [-out PATH] [-state PATH] [-every 60s] <dir>
+```
+
+It walks every `*.ndjson` in ONE flat directory (the bus is flat; a
+subdirectory is not part of it, and a symlink is skipped, never followed) and
+verifies each file's chain from its first line. Per file it reports at most one
+thing, as one agent-event (schema v1.0, `source` `agent-conform`) appended to
+its own stream with the library's own `ChainedWriter`:
+
+| Event | Severity | When | `data` |
+|---|---|---|---|
+| `chain_broken` | high | a `prev_hash` does not match the line before it | `file`, `line` (the first such line), `kind` (`prev_hash_mismatch`), `breaks` (how many), `restarts`, `malformed_lines`, `unverifiable_links`, `expected`/`found` (clipped), `verifier` |
+| `chain_unchained` | low | two or more events and not one carries a `prev_hash` | `file`, `kind` (`no_prev_hash`), `events`, `verifier` |
+
+An unchained stream is not a broken one: the field is optional by SPEC 6.5. It
+is reported once so the operator knows which streams nobody can verify. A
+stream with a single event is not judged, since the first line of every chain
+has no `prev_hash` by design.
+
+Each finding is written **once**. The `(file, kind, line)` is remembered in a
+small state file (`-state`, default `agent-conform.state.json` beside the
+output), so a schedule that runs every minute does not repeat an alert every
+minute. A state file that exists and cannot be read is an error, never a fresh
+start. The event is written before the state is saved, so a crash costs one
+duplicate at worst and never a lost alert.
+
+One pass, then exit, by default; a CronJob or a loop is the schedule.
+`-every <duration>` (at least 10s) repeats the pass inside one process, for an
+image with no shell to loop in and for a compose service: it exits 0 when told
+to stop, and exits 2 at once when a pass cannot do its job, so a supervisor's
+restart count shows a verifier that is not verifying.
+
+| Exit | Meaning |
+|---|---|
+| 0 | every stream verified, nothing NEW to report (an unchained stream, or a break already reported, does not change that) |
+| 1 | at least one NEW `chain_broken` was reported |
+| 2 | usage error, or something could not be done: the directory is missing or holds no stream, a file could not be read to its end (over a cap, an oversize line), the output or state could not be written. 2 wins over 1: the alerts are on the bus either way, and a run that could not finish must not look like one that did |
+
+What it will not do:
+
+- **It writes nothing but its own output and its own state.** Streams are
+  opened read-only, `-out` must be a file named `agent-conform.ndjson` (its
+  name is the source its events claim, so it cannot be pointed at another
+  writer's stream), and `-state` may not look like a stream. Mount the bus
+  read-only and give `-out` a path on a writable volume of its own.
+- **It never reports a bus it did not read as clean.** A missing or empty
+  directory is exit 2, and so is a file larger than `-max-file-bytes` (default
+  256 MiB) or holding a line longer than `-max-line-bytes` (default 1 MiB, at
+  most 4 MiB). A break found before the oversize line is still alerted.
+- Nothing from inside a file is copied into an alert but two hash strings,
+  clipped to 96 bytes, so a forged `prev_hash` does not choose how big the next
+  line on the bus is.
+- Its own output is verified like any other stream.
+
+The image is `ghcr.io/taipanbox/agent-conform:<tag>` (amd64 and arm64, static,
+distroless, non-root `65532`, signed by digest and attested; there is no
+`latest`, pin a released tag). Verify it the way the archives are verified:
+
+```sh
+cosign verify ghcr.io/taipanbox/agent-conform:<tag> \
+  --certificate-identity-regexp '^https://github.com/TAIPANBOX/agent-stack-go/\.github/workflows/release\.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+gh attestation verify oci://ghcr.io/taipanbox/agent-conform:<tag> -R TAIPANBOX/agent-stack-go
+```
+
+A compose service, with the bus mounted read-only and the verifier's own stream
+and state on a writable volume. Run it as the uid that owns that volume's
+files and give it read access to the bus through the bus's group:
+
+```yaml
+services:
+  agent-conform:
+    image: ghcr.io/taipanbox/agent-conform:<tag>   # a released tag, never a moving one
+    command: ["watch-dir", "-every", "60s", "-out", "/out/agent-conform.ndjson", "/bus"]
+    user: "10002:10002"
+    group_add: ["10001"]            # the group that can read the bus
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    volumes:
+      - events:/bus:ro              # every writer's stream, read-only
+      - conform-out:/out            # its own stream and state: the only writable path
+```
+
+A Kubernetes CronJob. A new break fails the Job (exit 1) on purpose, a second
+signal beside the event; the next run exits 0 because the finding is
+remembered, which is why the output volume must persist:
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: agent-conform
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10002
+            runAsGroup: 10002
+            supplementalGroups: [10001]   # the group that can read the bus
+          containers:
+            - name: agent-conform
+              image: ghcr.io/taipanbox/agent-conform:<tag>
+              args: ["watch-dir", "-out", "/out/agent-conform.ndjson", "/bus"]
+              securityContext:
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities: {drop: [ALL]}
+              volumeMounts:
+                - {name: events, mountPath: /bus, readOnly: true}
+                - {name: out, mountPath: /out}
+          volumes:
+            - name: events
+              persistentVolumeClaim: {claimName: events, readOnly: true}
+            - name: out
+              persistentVolumeClaim: {claimName: agent-conform-out}
+```
+
+These manifests are starting points: the image was built and run against a
+read-only bus with a separate output, and the snippets were not applied to a
+cluster in the change that wrote them. Wiring the verifier into a stack's own
+launcher (its uid, the file it owns on the bus) is the launcher's change.
+
+Limits, stated so nobody reads more into an alert or its absence than is
+there:
+
+- `prev_hash` is tamper-evidence, not tamper-proof. A writer compromised in its
+  own uid can forge its own stream with a valid chain, and so can anybody who
+  can rewrite a whole file. This catches a partial edit, a dropped line, a
+  reordered shipment.
+- Only a genuine mismatch is a break. A line whose `prev_hash` was stripped
+  reads as a chain restart, and a line replaced by garbage makes the next one
+  unverifiable; both are counted in the alert's `data` and neither raises one,
+  because a crash in the middle of a write produces exactly the second shape.
+- Only the first break per file is announced; a later one is not until the
+  first is gone (the count rides in the alert).
+- Cutting a stream short from the end changes no hash in what remains.
+
 ## Design notes
 
 - Stdlib only at runtime for `passport` and `chain`: no third-party
@@ -517,6 +676,10 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go@v1.0.2`), never a local
   is a file, `api/surface.txt`, and `scripts/api-surface.sh` fails when it
   loses or changes a line (a new major is cut with `--major`); ten scenarios
   in `features/contract-1.0.feature`, each bound to its test
+- [x] `agent-conform watch-dir` (agent-stack-go#64): the chain verifier for a
+  box, with its scenarios in `features/watch-dir.feature`, and the
+  `ghcr.io/taipanbox/agent-conform` image built by `release.yml` on a `v*` tag
+  (see [Running the chain verifier on a box](#running-the-chain-verifier-on-a-box-agent-conform-watch-dir))
 
 This module's package set (`passport`, `event`, `chain`) covers everything the
 stack's current Go consumers need; it is not a fixed, closed list, and grows

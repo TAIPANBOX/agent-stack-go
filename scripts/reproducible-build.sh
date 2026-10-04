@@ -180,6 +180,60 @@ esac
 
 echo "release assets: named without a version, so /releases/latest/download holds"
 
+# The image is built by the Dockerfile and not by the workflow's matrix, so the
+# three flags have to be held there too: an image whose binary lost -trimpath is
+# the same silent break as an archive that did (invariant 26 holds the digests,
+# this holds the flags). Comment lines are dropped first, because the Dockerfile
+# names the flags in prose above the build line and a check that read the prose
+# would pass on a build line that had lost them.
+dockerfile="Dockerfile"
+
+if [ ! -f "$dockerfile" ]; then
+	echo "FAIL: $dockerfile is missing."
+	echo
+	echo "This repository publishes an image built from it, and a gate that cannot"
+	echo "find the file it compares flags against has measured nothing."
+	exit 1
+fi
+
+docker_cmds="$(grep -vE '^[[:space:]]*#' "$dockerfile" | awk '
+	{
+		line = $0
+		sub(/^[ \t]+/, "", line)
+		if (cont != "") { line = cont " " line }
+		if (line ~ /\\$/) { sub(/[ \t]*\\$/, "", line); cont = line; next }
+		cont = ""
+		print line
+	}
+	END { if (cont != "") print cont }
+' | grep 'go build' || true)"
+
+if [ -z "$docker_cmds" ]; then
+	echo "FAIL: no 'go build' command found in $dockerfile."
+	echo
+	echo "Either the image stopped building the binary or this check stopped being"
+	echo "able to find the line that does. A missing subject is not a pass."
+	exit 1
+fi
+
+docker_missing=()
+case "$docker_cmds" in *"CGO_ENABLED=0"*) ;; *) docker_missing+=("CGO_ENABLED=0") ;; esac
+case "$docker_cmds" in *"-trimpath"*) ;; *) docker_missing+=("-trimpath") ;; esac
+case "$docker_cmds" in *"-s -w"*) ;; *) docker_missing+=("-s -w") ;; esac
+
+if [ ${#docker_missing[@]} -ne 0 ]; then
+	echo "FAIL: $dockerfile builds the image without: ${docker_missing[*]}"
+	echo
+	echo "The command it runs:"
+	echo "  $docker_cmds"
+	echo
+	echo "The release archives keep all three, so the two shapes of one release would"
+	echo "stop being built the same way, and nothing else would say so."
+	exit 1
+fi
+
+echo "image flags: CGO_ENABLED=0, -trimpath, -s -w all present in $dockerfile"
+
 # ---------------------------------------------------------------------------
 # Half two: the same source in two directories produces the same bytes.
 # ---------------------------------------------------------------------------

@@ -10,7 +10,7 @@ implementations that import it, on real files they produced".
 
 ## Its own test suite
 
-218 tests across `passport`, `event`, `chain`, `delegation` and `cmd/agent-conform`, green on
+248 tests across `passport`, `event`, `chain`, `delegation` and `cmd/agent-conform`, green on
 `go test ./... -count=1`. CI additionally gates on `gofmt`, `go vet`,
 `staticcheck`, `go test -race`, `go build`, `govulncheck`, and on the two
 claims this file used to make in prose: that the vendored schemas still match
@@ -77,6 +77,23 @@ over the canonical form, so two encoders that disagree about key order or
 number formatting would produce two different hashes for the same event and
 break the chain without either of them being wrong about JSON.
 
+## The chain verifier on a box
+
+`agent-conform watch-dir` (see the README) turns a broken `prev_hash` chain on
+the shared events bus into an event, where `agent-conform -chain` could only
+tell whoever happened to run it.
+
+`@measured` 2026-10-04, `docker build` of the repository's `Dockerfile` and
+`docker run` of the result (linux/arm64, v0.0.0-local) against a three-stream
+copy of a bus with one `m` of `medium` flipped on line 3 of one chained stream,
+the bus mounted read-only and the output on a separate volume: the first run
+exited 1 and wrote a `chain_broken` naming that file and line 4 plus a
+`chain_unchained` for the stream written without a chain, the second exited 0
+and wrote nothing, and the three bus files hashed the same afterwards. What ran
+is the image, not the unit tests; the unit tests (`cmd/agent-conform/watchdir_test.go`)
+hold the same behaviour on every push, and the `release.yml` image jobs have
+not yet run on a tag.
+
 ## What is NOT validated
 
 Stated plainly, because the omissions matter more than the passes:
@@ -89,3 +106,11 @@ Stated plainly, because the omissions matter more than the passes:
 - **The chain proves ordering and integrity, not honesty.** It shows that a
   journal has not been altered after the fact. It cannot show that what was
   written was true when it was written.
+- **`watch-dir` has not watched a live bus.** It was run on a fixture copy of
+  one, in the image, and never on a box where a stack's writers were appending
+  while it read. The compose and CronJob snippets in the README were not
+  applied anywhere. Only the host's own architecture (arm64) of the image was
+  built; the two-architecture build and the signing and attestation steps run
+  for the first time on a tag. What it cannot see is in the README: a stripped
+  `prev_hash` reads as a restart, a garbled line leaves the next one
+  unverifiable, and a writer forging its own stream with a valid chain passes.

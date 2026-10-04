@@ -30,7 +30,7 @@
   ],
   "schema": "taipanbox.dev/components/v1",
   "repo": "TAIPANBOX/agent-stack-go",
-  "distribution": "Go module github.com/TAIPANBOX/agent-stack-go by tag; agent-conform archives with SHA256SUMS on each GitHub Release",
+  "distribution": "Go module github.com/TAIPANBOX/agent-stack-go by tag; agent-conform archives with SHA256SUMS on each GitHub Release; the agent-conform image ghcr.io/taipanbox/agent-conform:<tag> (amd64, arm64, signed, attested) on each v* tag",
   "module": "github.com/TAIPANBOX/agent-stack-go",
   "components": [
     {
@@ -61,7 +61,7 @@
       "declared": {
         "it_is_a_release_artifact_not_a_deployed_component": {
           "value": "agent-conform_${GOOS}_${GOARCH}",
-          "why": "release.yml builds it for several platforms so somebody outside this estate can check whether their service conforms. No launcher installs it, which is why estate.json's `runs` is empty and right."
+          "why": "release.yml builds it for several platforms so somebody outside this estate can check whether their service conforms, and publishes it as an image so a launcher can run `agent-conform watch-dir` against the shared events bus on a schedule. No launcher installs it yet, which is why estate.json's `runs` is empty and right today; the day one does, that field changes in the same pull request as the launcher."
         },
         "the_module_is_what_the_estate_actually_consumes": {
           "value": "github.com/TAIPANBOX/agent-stack-go",

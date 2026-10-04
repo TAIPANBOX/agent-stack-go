@@ -11,7 +11,17 @@ name: release
 # anything.
 #
 # The library half needs no release: `go get github.com/TAIPANBOX/agent-stack-go`
-# resolves from the tag. This publishes the command only.
+# resolves from the tag. This publishes the command only, in two shapes: the
+# per-platform archives below, and a container image of the same command
+#
+#   ghcr.io/taipanbox/agent-conform:v1.1.0   what a deployment pins
+#   ghcr.io/taipanbox/agent-conform:sha-abc1234   what a bisect points at
+#
+# for the launchers that run `agent-conform watch-dir` against the shared events
+# bus on a schedule (agent-stack-go#64). There is deliberately no `:latest` and
+# no `:main`: "which build verified this bus" has to have an answer that does
+# not change under the operator, and a tag that moves is a deployment whose
+# contents change without a rollout anybody recorded.
 #
 # MONEY: nothing here is metered. Standard runners are free on a public
 # repository and no larger runner is requested.
@@ -27,7 +37,7 @@ on:
   # `push: tags: v*` and nothing else is tested by exactly one event in its
   # whole life, and that event is the one where a mistake is public.
   pull_request:
-    paths: [".github/workflows/release.yml"]
+    paths: [".github/workflows/release.yml", "Dockerfile"]
 
 permissions:
   contents: read
@@ -161,3 +171,112 @@ jobs:
         run: |
           gh release create "${GITHUB_REF_NAME}" dist/* \
             --verify-tag --title "agent-stack-go ${GITHUB_REF_NAME}" --generate-notes
+
+  # Proves the Dockerfile itself still builds on a pull request that touches it
+  # or this workflow, before a tag ever reaches either. See `image` below for
+  # the job that actually pushes.
+  image-build:
+    # Builds and pushes nothing, so it needs only the checkout.
+    permissions:
+      contents: read
+    name: build image (no push)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # QEMU is registered but not used for the compile: the Go build cross-
+      # compiles from the runner's own architecture (see the Dockerfile's
+      # BUILDPLATFORM/TARGETARCH). It is here for the base-image layers, which
+      # buildx still resolves per platform.
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            VERSION=${{ github.ref_name }}
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  image:
+    name: build + push image
+    # Only on the tag push. `image-build` above proves the Dockerfile builds on
+    # a pull request, and this is the job that actually pushes to GHCR, so it is
+    # guarded off on that event by name rather than by the absence of a trigger:
+    # the day a pull_request trigger covers it, it must still publish nothing
+    # (estate-gates C17).
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read      # a job-level block replaces the workflow's, and checkout needs this
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/agent-conform
+          flavor: latest=false
+          tags: |
+            type=ref,event=tag
+            type=sha,format=short
+
+      - name: Build and push
+        id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            VERSION=${{ github.ref_name }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # The image is signed by digest and its provenance attested, keyless: the
+      # same two moves the archives above get, applied to the image's digest. A
+      # stranger verifies with
+      #   cosign verify ghcr.io/taipanbox/agent-conform:<tag> \
+      #     --certificate-identity-regexp '^https://github.com/TAIPANBOX/agent-stack-go/\.github/workflows/release\.yml@refs/tags/v' \
+      #     --certificate-oidc-issuer https://token.actions.githubusercontent.com
+      #   gh attestation verify oci://ghcr.io/taipanbox/agent-conform:<tag> -R TAIPANBOX/agent-stack-go
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.1.3
+      - name: sign the image by digest, keyless
+        run: cosign sign --yes "ghcr.io/taipanbox/agent-conform@${{ steps.push.outputs.digest }}"
+      - name: provenance attestation for the image
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ghcr.io/taipanbox/agent-conform
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Say what was published
+        run: |
+          echo "published:"
+          echo "${{ steps.meta.outputs.tags }}" | sed 's/^/  /'
+          echo
+          echo "platforms: linux/amd64, linux/arm64"
