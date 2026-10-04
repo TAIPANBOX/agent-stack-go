@@ -375,20 +375,6 @@ for f in out:
 assert n, "no schema-shaped file tracked in this repo"')" \
 	"measured nothing"
 
-echo
-if [ -n "$(git status --porcelain)" ]; then
-	printf 'FAIL: this script left the tree dirty, so it cannot be trusted about anything above\n'
-	git status --porcelain | head -5
-	exit 1
-fi
-
-if [ "$failures" -gt 0 ]; then
-	printf '%d of %d cases failed.\n' "$failures" "$cases"
-	printf 'A gate that has quietly stopped catching anything looks exactly like a gate\n'
-	printf 'with nothing to catch, and stays that way until the fault it guards ships.\n'
-	exit 1
-fi
-
 # --- the door and the record agree ------------------------------------------
 
 # The fault, planted as it actually was: the record refuses a repeated
@@ -420,6 +406,20 @@ run_case "door-and-record: a rule renamed on BOTH sides" pass \
 	"./scripts/door-and-record-agree.sh" \
 	"$(py 'edit_all("chain/chain.go", "ErrCycle", "ErrLoop")
 edit_all("delegation/chain.go", "ErrCycle", "ErrLoop")')"
+
+echo
+if [ -n "$(git status --porcelain)" ]; then
+	printf 'FAIL: this script left the tree dirty, so it cannot be trusted about anything above\n'
+	git status --porcelain | head -5
+	exit 1
+fi
+
+if [ "$failures" -gt 0 ]; then
+	printf '%d of %d cases failed.\n' "$failures" "$cases"
+	printf 'A gate that has quietly stopped catching anything looks exactly like a gate\n'
+	printf 'with nothing to catch, and stays that way until the fault it guards ships.\n'
+	exit 1
+fi
 
 printf 'OK: %d cases. Every gate fails on its own fault, passes on a non-fault,\n' "$cases"
 printf '    and refuses to report success when it measured nothing.\n'
