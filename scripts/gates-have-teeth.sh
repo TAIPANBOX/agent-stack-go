@@ -140,8 +140,18 @@ run_case() {
 	# Exit code first, then wording. Checking the needle before the expectation
 	# turns "it did not fail at all" into "it failed for the wrong reason",
 	# which sends the reader to look at prose when the gate is toothless.
+	#
+	# The needle is searched in a here-string, NOT `printf '%s' "$out" | grep -qF`.
+	# Under `set -o pipefail` that pipeline reports failure whenever grep -q
+	# leaves before printf has finished, and the `!` then reads "the writer was
+	# cut off" as "the needle is not there": WRONG REASON for a gate that said
+	# exactly what the case expects, on logs as small as 324 bytes with the
+	# needle on the first line. Measured 2026-10-05: in 6 of 104 runs of this
+	# script with three copies running at once beside CPU hogs ("printf: write
+	# error: Broken pipe" at this line, or nothing printed where SIGPIPE is not
+	# ignored), and in none of 30 quiet serial runs.
 	if [ "$expect" = fail ] && [ "$rc" -ne 0 ] && [ -n "$needle" ] &&
-		! printf '%s' "$out" | grep -qF -- "$needle"; then
+		! grep -qF -- "$needle" <<<"$out"; then
 		printf 'WRONG REASON  %s\n              it failed, but not saying: %s\n' "$name" "$needle"
 		failures=$((failures + 1))
 		return
@@ -152,7 +162,7 @@ run_case() {
 	elif [ "$expect" = pass ] && [ "$rc" -ne 0 ]; then
 		printf 'OVEREAGER  %s\n           the gate failed on something it must not catch\n' "$name"
 		failures=$((failures + 1))
-		printf '%s\n' "$out" | head -4 | sed 's/^/           /'
+		printf '%s\n' "$out" | sed -n '1,4s/^/           /p'
 	else
 		printf 'ok  %-58s (%s)\n' "$name" "$expect"
 	fi
@@ -410,7 +420,7 @@ edit_all("delegation/chain.go", "ErrCycle", "ErrLoop")')"
 echo
 if [ -n "$(git status --porcelain)" ]; then
 	printf 'FAIL: this script left the tree dirty, so it cannot be trusted about anything above\n'
-	git status --porcelain | head -5
+	git status --porcelain | sed -n '1,5p'
 	exit 1
 fi
 
