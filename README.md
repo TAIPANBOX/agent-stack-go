@@ -117,7 +117,7 @@ kind of wheel not to hand-roll):
 
 | Field | JSON key | Type | Required | Notes |
 |---|---|---|---|---|
-| `Schema` | `schema` | `string` | yes | `SchemaV02` or `SchemaV01` |
+| `Schema` | `schema` | `string` | yes | one of `SchemaV01`, `SchemaV02`, `SchemaV03` or `SchemaV10` |
 | `TS` | `ts` | `string` | yes | timestamp, not shape-validated by `Unmarshal` |
 | `Source` | `source` | `string` | yes | the emitting service |
 | `Type` | `type` | `string` | yes | the event type |
@@ -648,7 +648,7 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go@v1.1.0`), never a local
 - [x] `event`: `Marshal`, `Unmarshal`, append-only `Writer`, `Scan`/`ReadFile` NDJSON readers, `ChainedWriter`/`VerifyChain` SPEC 6.5 `prev_hash` integrity chain, `Canonicalize`/`ChainHash`
 - [x] `chain`: `Append`, `Validate`, `MaxDepth` = 32, acyclic + root-first
 - [x] conformance tests against the canonical JSON Schemas, one per bound type:
-  `event` against `agent-event` v0.2, `passport` against `agent-passport` v0.1,
+  `event` against `agent-event` v0.2 and v1.0, `passport` against `agent-passport` v0.1 and v1.0,
   including a both-directions check that the struct's json tags and the schema's
   properties name the same set (a mistyped tag validates fine, since
   `additionalProperties` is true, and declares nothing)
@@ -674,7 +674,7 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go@v1.1.0`), never a local
   the schema never named (`ErrUnknownField`) and keeps tolerating it under
   v0.1; the exported surface of `chain`, `delegation`, `event` and `passport`
   is a file, `api/surface.txt`, and `scripts/api-surface.sh` fails when it
-  loses or changes a line (a new major is cut with `--major`); ten scenarios
+  loses or changes a line (a new major is cut with `--major`); eleven scenarios
   in `features/contract-1.0.feature`, each bound to its test
 - [x] `agent-conform watch-dir` (agent-stack-go#64): the chain verifier for a
   box, with its scenarios in `features/watch-dir.feature`, and the
