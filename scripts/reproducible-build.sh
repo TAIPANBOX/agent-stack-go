@@ -244,11 +244,22 @@ trap 'rm -rf "$work"' EXIT INT TERM
 short="$work/a"
 long="$work/one-rather-longer-directory-name"
 
+# The archive goes to a FILE and is unpacked from it, never `git archive HEAD |
+# tar -x`. tar stops reading at the end-of-archive marker, and git archive
+# still has its trailing padding to write: on a busy machine git gets SIGPIPE,
+# exits 141, and under `set -o pipefail` this script dies here with no message
+# at all, which scripts/gates-have-teeth.sh then reads as "this gate is already
+# failing" and reports five reproducible-build cases UNJUDGEABLE (3 of those 104
+# runs of the harness under load, 2026-10-05). The bare pipeline, alone, under
+# the same load: 9 of 300 runs, then 5 of 300; the file form: 0 of 300.
+archive="$work/source.tar"
+# Everything git tracks and nothing it does not: an untracked file in the
+# working tree must not be able to change the answer.
+git archive -o "$archive" HEAD
+
 for dir in "$short" "$long"; do
 	mkdir -p "$dir"
-	# Everything git tracks and nothing it does not: an untracked file in the
-	# working tree must not be able to change the answer.
-	git archive HEAD | tar -x -C "$dir"
+	tar -x -C "$dir" -f "$archive"
 done
 
 echo "toolchain: $(go version)"
