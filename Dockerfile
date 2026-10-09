@@ -29,7 +29,7 @@
 # `docker buildx build`, or drop the `--platform=` from the line below and
 # lose only the cross-compile (arm64 then builds under emulation).
 
-FROM --platform=$BUILDPLATFORM golang@sha256:3680233e3204827fbdc66088528ae6d4b3d034f51d03a99d454f6de034888244 AS build
+FROM --platform=$BUILDPLATFORM golang@sha256:5bc7f572bbaa98885a3a1fd9c0aa76b59e3e14e8628bfc316bbfd0c701e4818c AS build
 ENV GOTOOLCHAIN=auto
 WORKDIR /src
 # Dependencies first, so a code-only change does not re-download the module
