@@ -223,7 +223,7 @@ run_case "reproducible-build: the Dockerfile loses a build flag" fail \
 # invariant 26: a base image pinned by a tag can move under an operator.
 run_case "base-images: a FROM loses its digest and falls back to a moving tag" fail \
 	'./scripts/base-images-pinned-by-digest.sh' \
-	"$(py 'edit("Dockerfile", "golang@sha256:3680233e3204827fbdc66088528ae6d4b3d034f51d03a99d454f6de034888244", "golang:1.27")')" \
+	"$(py 'edit("Dockerfile", "golang@sha256:5bc7f572bbaa98885a3a1fd9c0aa76b59e3e14e8628bfc316bbfd0c701e4818c", "golang:1.27")')" \
 	"names no @sha256:"
 
 # invariant 13: a vendored copy that drifted from the owner of the contract.
