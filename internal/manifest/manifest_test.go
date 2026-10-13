@@ -209,20 +209,39 @@ func TestTheVendoredSchemaSetIsTheOneDeclared(t *testing.T) {
 	}
 }
 
-// It reads no environment variable, and that is a claim rather than an absence.
-// The reader is proved against a planted name first, so "found none" and "cannot
-// find any" are not the same result, and the walk skips this package because the
-// prover needs a name in its own source.
-func TestItReadsNoEnvironmentAndTheReaderStillWorks(t *testing.T) {
+// ENVIRONMENT READS ARE DECLARED AND CHECKED IN BOTH DIRECTIONS.
+//
+// components.json says which environment variables the shipped code reads
+// (checked.env), or claims reads_no_environment. This collects every os.Getenv
+// and os.LookupEnv with a string-literal name in non-test code, whatever the
+// name is, refuses a read whose name is computed because it cannot be checked,
+// and requires the names read and the names declared to match. The reader is
+// proved first against a planted read, so "found none" and "cannot find any"
+// are different results.
+//
+// Test files are not walked, as in the sibling manifests: a test reads its own
+// harness, and the shipped tool does not.
+func TestEveryEnvironmentReadIsDeclaredAndEveryDeclaredReadIsRead(t *testing.T) {
 	m, r := load(t)
 
-	name := regexp.MustCompile(`AGENT_STACK_[A-Z0-9_]+`)
-	if got := name.FindAllString("const n = \"AGENT_STACK_PLANTED\"", -1); len(got) != 1 {
-		t.Fatalf("the reader found %v in a string containing exactly one name, so a "+
+	literal := regexp.MustCompile(`\bos\.(?:Getenv|LookupEnv)\(\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*\)`)
+	anyRead := regexp.MustCompile(`\bos\.(?:Getenv|LookupEnv)\(`)
+
+	// One literal read and one computed read. The first must be found under its
+	// own name, and the second must be counted as a read the test refuses.
+	const planted = `v := os.Getenv("PLANTED_NAME") + os.Getenv(name)`
+	if got := literal.FindAllStringSubmatch(planted, -1); len(got) != 1 || got[0][1] != "PLANTED_NAME" {
+		t.Fatalf("the reader found %v in a string holding exactly one literal read, so a "+
 			"finding of none below would prove nothing", got)
 	}
+	if got := len(anyRead.FindAllString(planted, -1)) - len(literal.FindAllString(planted, -1)); got != 1 {
+		t.Fatalf("the reader counted %d computed read(s) in a string holding exactly one, "+
+			"so the refusal below would not fire", got)
+	}
 
-	var found []string
+	read := map[string]string{} // name -> first non-test file that reads it
+	var nonLiteral []string
+	scanned := 0
 	err := filepath.Walk(r, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -232,38 +251,72 @@ func TestItReadsNoEnvironmentAndTheReaderStillWorks(t *testing.T) {
 			case ".git", "vendor":
 				return filepath.SkipDir
 			}
-			if path == filepath.Join(r, "internal", "manifest") {
-				return filepath.SkipDir
-			}
 			return nil
 		}
-		if !strings.HasSuffix(path, ".go") {
+		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
 		b, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		for _, n := range name.FindAllString(string(b), -1) {
-			found = append(found, n+" in "+strings.TrimPrefix(path, r+"/"))
+		scanned++
+		rel := strings.TrimPrefix(path, r+"/")
+		src := string(b)
+		for _, mm := range literal.FindAllStringSubmatch(src, -1) {
+			if _, ok := read[mm[1]]; !ok {
+				read[mm[1]] = rel
+			}
+		}
+		if len(anyRead.FindAllString(src, -1)) > len(literal.FindAllString(src, -1)) {
+			nonLiteral = append(nonLiteral, rel)
 		}
 		return nil
 	})
 	if err != nil {
 		t.Fatalf("walking the tree: %v", err)
 	}
+	if scanned == 0 {
+		t.Fatal("found no non-test Go file to read, so this measured nothing")
+	}
+	for _, f := range nonLiteral {
+		t.Errorf("%s reads the environment under a name that is not a string literal, "+
+			"so the declaration cannot be checked against it", f)
+	}
+
+	names := make([]string, 0, len(read))
+	for n := range read {
+		names = append(names, n)
+	}
+	sort.Strings(names)
 
 	for _, c := range m.Components {
-		if !c.Checked.ReadsNoEnvironment {
+		if c.Checked.ReadsNoEnvironment {
+			if len(c.Checked.Env) != 0 {
+				t.Errorf("components.json claims reads_no_environment and also declares %d "+
+					"variable(s). Those cannot both be true.", len(c.Checked.Env))
+			}
+			for _, n := range names {
+				t.Errorf("components.json says this repository reads no environment variable, "+
+					"and %s reads %s", read[n], n)
+			}
 			continue
 		}
-		for _, f := range found {
-			t.Errorf("components.json says this repository reads no environment variable, "+
-				"and here is one: %s", f)
+		for _, n := range names {
+			if _, ok := c.Checked.Env[n]; !ok {
+				t.Errorf("%s reads %s, and components.json does not declare it under checked.env",
+					read[n], n)
+			}
 		}
-		if len(c.Checked.Env) != 0 {
-			t.Errorf("components.json claims reads_no_environment and also declares %d "+
-				"variable(s). Those cannot both be true.", len(c.Checked.Env))
+		declared := make([]string, 0, len(c.Checked.Env))
+		for n := range c.Checked.Env {
+			declared = append(declared, n)
+		}
+		sort.Strings(declared)
+		for _, n := range declared {
+			if _, ok := read[n]; !ok {
+				t.Errorf("components.json declares %s under checked.env, and no non-test code reads it", n)
+			}
 		}
 	}
 }
