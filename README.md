@@ -11,7 +11,7 @@
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-v1.1.0-success.svg)
 
-<img src="docs/architecture.png" alt="agent-stack-go: the passport, event and chain packages compose one shared contract, imported by tag by Idryx, Wardryx, Mockryx, Qryx, heraldyx, scopyx, terraform-provider-taipan and vouchryx" width="960">
+<img src="docs/architecture.png" alt="agent-stack-go: the passport, event and chain packages compose one shared contract, imported by tag by Idryx, Wardryx, Mockryx, Qryx, heraldyx, scopyx, terraform-provider-taipan, vouchryx and CostCrew" width="960">
 
 </div>
 
@@ -87,7 +87,7 @@ flowchart TB
 
 - **Consumes**: the **agent-passport** spec, which its `passport` and `event` packages conform to (each checked by its own schema conformance test, against the canonical schema rather than against a copy of our own beliefs).
 - **Produces**: shared Go types for the Agent Passport document, the agent-event NDJSON envelope, and delegation-chain validation.
-- **Talks to**: imported by **Idryx**, **Wardryx**, **Mockryx**, **Qryx**, **heraldyx**, **scopyx**, **terraform-provider-taipan** and **vouchryx**, so all eight speak the same identity and event language as **TokenFuse** and **Engram**, which reach it through their own languages.
+- **Talks to**: imported by **Idryx**, **Wardryx**, **Mockryx**, **Qryx**, **heraldyx**, **scopyx**, **terraform-provider-taipan**, **vouchryx** and **CostCrew**, so all nine speak the same identity and event language as **TokenFuse** and **Engram**, which reach it through their own languages.
 
 The full stack is TokenFuse (spend), Wardryx (policy), Vouchryx (delegation), Engram (memory), Idryx (access), Qryx (crypto), Verdryx (quality), Mockryx (pre-prod), scopyx (governed web egress), CostCrew (the bill), Trailryx (the record) and heraldyx (the mail out), on the shared Agent Passport + agent-event contract (agent-stack-go / agent-passport), configured via terraform-provider-taipan and driven from Genaryx, the console over all of it.
 
@@ -101,10 +101,12 @@ Run the whole open stack locally with one command via [**stack-up**](https://git
 <img src="docs/contract.png" alt="The event envelope's required and optional fields, the Passport identity and runtime fields, the Attestation binding, and the chain package's delegation helpers" width="900">
 </div>
 
-Three packages, one contract, stdlib plus exactly one vetted dependency
-(`github.com/gowebpki/jcs`, the RFC 8785/JCS canonicalization the
-`prev_hash` integrity chain hashes over - canonical JSON is precisely the
-kind of wheel not to hand-roll):
+Four packages, one contract, stdlib plus two direct dependencies:
+`github.com/gowebpki/jcs` (the RFC 8785/JCS canonicalization the `prev_hash`
+integrity chain hashes over in `event`; canonical JSON is precisely the kind
+of wheel not to hand-roll) and `github.com/santhosh-tekuri/jsonschema/v6`
+(JSON Schema validation, used by the `agent-conform` command and the
+conformance tests, never by a library package):
 
 | Package | Wire schema | What it defines |
 |---|---|---|
@@ -224,7 +226,7 @@ wanted to check a payload once, which is the more common reason to touch this
 repository at all: `agent-conform` decides whether a passport or an event stream
 conforms, and needing to install a compiler to run a checker is backwards.
 
-Prebuilt binaries for Linux, macOS and Windows, on x86_64 and arm64, are
+Prebuilt binaries for Linux and macOS on x86_64 and arm64, and for Windows on x86_64, are
 published on the [Releases page](https://github.com/TAIPANBOX/agent-stack-go/releases)
 for every `v*` tag, with a `SHA256SUMS` beside them.
 
@@ -617,8 +619,8 @@ The canonical JSON Schemas live in the `TAIPANBOX/agent-passport` repo.
 `passport/testdata/schema/agent-passport.schema.json` are local copies used only by
 those packages' conformance tests, so the Go bindings can never silently drift
 out of lockstep with the schemas that define the wire contract.
-`cmd/agent-conform/schemas/*.json` are separate local copies of all three
-schemas (Passport, event v0.1, event v0.2), embedded into that tool via
+`cmd/agent-conform/schemas/*.json` are separate local copies of all six
+embedded schemas (Passport v0.1 and v1.0, event v0.1, v0.2, v0.3 and v1.0), embedded into that tool via
 `go:embed` for the same reason.
 
 Copies drift, so on every push CI checks out agent-passport beside this repo
@@ -681,7 +683,7 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go@v1.1.0`), never a local
   `ghcr.io/taipanbox/agent-conform:<tag>` image built by `release.yml` on a `v*` tag
   (see [Running the chain verifier on a box](#running-the-chain-verifier-on-a-box-agent-conform-watch-dir))
 
-This module's package set (`passport`, `event`, `chain`) covers everything the
+This module's package set (`passport`, `event`, `chain`, `delegation`) covers everything the
 stack's current Go consumers need; it is not a fixed, closed list, and grows
 opportunistically the same way `passport.LoadDir` did (extracted once two
 independent copies existed, not speculatively).
