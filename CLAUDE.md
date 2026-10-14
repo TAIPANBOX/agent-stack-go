@@ -880,3 +880,24 @@ refactors that keep every exported signature identical, and additions to
     a lock on the file and a prev_hash read from disk, before any consumer is
     bumped; a lease-based single writer was the fallback if flock turned out
     not to be honoured across nodes on the RWX share.
+
+28. **A plain `Writer` appends under the same exclusive lock on the file as a
+    `ChainedWriter`, for the length of one append.** The chained writer's
+    unlocked append lost half of two writers' events on an NFS share (measured
+    2026-10-14, invariant 27). The plain writer had the same unlocked append
+    and is not measured on its own; the same loss is expected there, by
+    inference, which is why the lock is taken. `Write` takes `flock(2)`
+    `LOCK_EX`, appends and unlocks; a lock that cannot be taken appends nothing
+    and returns the error; an unlock that fails is returned although the line is
+    on disk; a panic in between still releases the lock. Write does not fsync,
+    as before. Windows has no cross-process lock, as invariant 27 says.
+    *(test: `TestTheWriterLockIsHeldWhileTheLineIsAppended`,
+    `TestAWriteWaitsForAnotherWritersLock`,
+    `TestTheWriterLockIsReleasedWhenAnAppendPanics` (flock probes from a second
+    open file description, which flock excludes as a second process would);
+    `TestNothingIsWrittenWhenTheWriterCannotBeLocked`,
+    `TestAFailureToReleaseTheWriterLockIsReported`; scenarios in
+    `features/writer-lock.feature`. All five went red on the unfixed writer.
+    Mutants planted 2026-10-14 and caught by name: no lock taken, lock refusal
+    ignored, unlock before the append, no release on panic, unlock failure
+    ignored.)*
