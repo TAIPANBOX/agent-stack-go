@@ -138,10 +138,11 @@ func Unmarshal(data []byte) (Event, error) {
 }
 
 // Writer is an append-only NDJSON writer for the agent-event envelope: one
-// line per event, guarded by a mutex so concurrent callers never interleave
-// partial lines, fail-open (Write returns an error to the caller to log and
-// drop; it never panics and never blocks the caller's own request path on
-// disk trouble beyond the single write).
+// line per event. Concurrent callers in this process are serialized by a
+// mutex, and every append holds an exclusive lock on the file, so writers in
+// other processes that share the file do not overwrite its lines. Fail-open:
+// Write returns an error to the caller to log and drop, and it never panics.
+// A writer whose file cannot be locked appends nothing (see appendLocked).
 type Writer struct {
 	mu   sync.Mutex
 	file *os.File
@@ -170,11 +171,45 @@ func (w *Writer) Write(e Event) error {
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	return w.appendLocked(line)
+}
+
+// appendLocked appends line under an exclusive flock(2) on the file and
+// releases the lock. The lock is what makes the append safe when another
+// process also appends to the file: O_APPEND alone does not serialize two
+// writers on an NFS share, and each one can overwrite the other's bytes. A lock
+// that cannot be taken appends nothing. A panic in between still releases it.
+func (w *Writer) appendLocked(line []byte) error {
+	if err := lockForWrite(w.file); err != nil {
+		return fmt.Errorf("event: lock: %w", err)
+	}
+	released := false
+	defer func() {
+		if !released {
+			_ = unlockAfterWrite(w.file)
+		}
+	}()
+	testHookWriterBeforeAppend()
 	if _, err := w.file.Write(line); err != nil {
 		return fmt.Errorf("event: write: %w", err)
 	}
+	released = true
+	if err := unlockAfterWrite(w.file); err != nil {
+		return fmt.Errorf("event: unlock: %w", err)
+	}
 	return nil
 }
+
+// The file lock of a Writer is taken and released through these two, so a
+// test can make either fail. Nothing else assigns them.
+var (
+	lockForWrite     = lockExclusive
+	unlockAfterWrite = unlockFile
+)
+
+// testHookWriterBeforeAppend runs immediately before the line is appended, under
+// the file lock. A test sets it to observe that the lock is held there.
+var testHookWriterBeforeAppend = func() {}
 
 // Close closes the underlying file.
 func (w *Writer) Close() error {
