@@ -820,3 +820,63 @@ refactors that keep every exported signature identical, and additions to
     of them on 2026-10-04. Not
     enforced: that a published image's bytes rebuild identically. Invariant 11
     claims that for the archives only.)*
+
+27. **A chained stream's prev_hash comes from the file, read under an exclusive
+    lock on the file that is held until the line is appended.** The file is
+    the chain's authority, never the writer's memory of its own last write.
+    `ChainedWriter.Write` takes `flock(2)` `LOCK_EX`, reads the last line on
+    disk, stamps `prev_hash` from it, appends, and unlocks; a file whose last
+    byte is not a newline gets one first, so an event is never glued onto a
+    dead writer's fragment. Nothing is appended when the lock cannot be taken
+    or the tail cannot be read, and a writer whose file cannot be locked fails
+    at `NewChainedWriter` rather than at its first event.
+
+    Measured 2026-10-14 on a three-node cluster: after a pod delete the old
+    pod kept appending through its five-second preStop while its replacement
+    had already resumed the chain, one RWX file, and `watch-dir` reported
+    `chain_broken` on an honest stream. A Deployment under either rollout
+    strategy runs two writers across a pod delete, and costcrew's service and
+    its CronJob share one stream by design, so "one writer per file" is not a
+    property the estate has and the library cannot assume it.
+
+    flock and not fcntl: a flock lock belongs to the open file description,
+    so two writers in one process exclude each other as two processes do, and
+    a verifier closing its own descriptor of the file does not release a
+    writer's lock. A Linux NFS client emulates flock with a whole-file lock the
+    server arbitrates, takes it as a cache coherency point (size and pages
+    revalidated) and writes back on release, which is what makes it hold
+    across nodes on an RWX volume. Write does not fsync: ordering and
+    visibility to the next writer are what the chain needs and the lock gives
+    both; durability across a host's power loss is a property no writer here
+    has claimed, and a truncated tail resumes cleanly. On a platform without
+    flock (Windows) there is no cross-process lock, only the re-read; no bus
+    runs there. `resumeWindow` is VerifyChain's own 4 MiB line cap, so a
+    writer can chain from any line the verifier can judge, and a longer last
+    line starts a fresh chain (a restart, never a break).
+    *(test: `TestAWriteChainsFromTheLineAnotherWriterAppended`,
+    `TestConcurrentWritersOnOneFileKeepOneChain` (12 seeds, goroutines with
+    their own and with a shared writer), `TestConcurrentProcessesOnOneFileKeepOneChain`
+    (four processes re-executing the test binary),
+    `TestAWriteWaitsForTheFileLockAndReadsTheTailAfterIt`,
+    `TestTheFileLockIsHeldWhileTheLineIsAppended`,
+    `TestAWriteAfterATornTailStartsALineOfItsOwn`,
+    `TestNothingIsWrittenWhenTheFileCannotBeLocked`,
+    `TestAPanicWhileAppendingStillReleasesTheLock`; scenarios in
+    `features/chained-writer-lock.feature`. Eleven of the fourteen new tests
+    went red on the unfixed writer, among them 783 breaks in 800 lines from four
+    processes; the other three guard paths the old writer did not have. Mutants planted 2026-10-14 and caught by name: no lock in
+    Write; the lock held but prev_hash from the in-memory hash of the writer's
+    own last line; the lock released before the append; the tail read before
+    the lock; no newline before a torn tail; the mutex removed; the last line
+    looked for in the first read only; the tail read error ignored; no release
+    when the append panics. Two more,
+    the lock never released after Write and NewChainedWriter keeping it, are
+    caught as a deadlock by the test timeout. One survives, by construction:
+    the EINTR retry around flock cannot be reached, because Go installs its
+    signal handlers with SA_RESTART and the kernel restarts flock; it stays as
+    cmd/go's own lockedfile keeps it.)*
+
+    @decided 2026-10-14: the shared-stream fault is closed in the library, by
+    a lock on the file and a prev_hash read from disk, before any consumer is
+    bumped; a lease-based single writer was the fallback if flock turned out
+    not to be honoured across nodes on the RWX share.
