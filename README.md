@@ -7,7 +7,7 @@
 [![CI](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml/badge.svg)](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go)
 ![Go](https://img.shields.io/badge/go-1.27-00ADD8.svg)
-![tests](https://img.shields.io/badge/tests-248-brightgreen.svg)
+![tests](https://img.shields.io/badge/tests-262-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-v1.1.0-success.svg)
 
@@ -142,9 +142,18 @@ shipping elsewhere in the stack.
 `ChainedWriter` is `Writer` plus the chain: every appended event carries
 `sha256:` + hex(sha256(C)) of the PREVIOUS event, where C is its RFC 8785
 (JCS) canonical serialization with the `prev_hash` field removed. One
-file is one chain: reopening resumes from the tail, so a process restart
-does not fork the chain (an unreadable tail starts fresh, fail-open, and
-a verifier shows the restart honestly). `Canonicalize`/`ChainHash` are
+file is one chain, whoever writes it: every `Write` takes an exclusive
+`flock(2)` on the file, reads the last line actually on disk, stamps
+`prev_hash` from that line, appends and only then unlocks. So a process
+restart resumes the chain, and so do writers that share one file at the
+same time: a pod and its replacement during a rollout, a service and its
+CronJob, several goroutines. A writer killed mid-line leaves a fragment
+the next event is not glued onto (the fragment is one malformed line and
+the event starts a fresh chain, a restart and not a break), and an
+unreadable or malformed tail starts fresh, fail-open, with a verifier
+showing the restart honestly. On a Linux NFS share (a Kubernetes RWX
+volume) the kernel arbitrates the lock at the server, so it holds across
+nodes; on Windows there is no cross-process lock, only the re-read. `Canonicalize`/`ChainHash` are
 the exported primitives; `VerifyChain` walks a stream and reports
 genuine breaks separately from legal restarts and unverifiable links (a
 rotated segment's first line, or the line after a malformed one).
@@ -678,6 +687,9 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go@v1.1.0`), never a local
   is a file, `api/surface.txt`, and `scripts/api-surface.sh` fails when it
   loses or changes a line (a new major is cut with `--major`); eleven scenarios
   in `features/contract-1.0.feature`, each bound to its test
+- [x] `ChainedWriter` locks the file and chains from the line on disk, so
+  writers sharing one stream keep one chain (scenarios in
+  `features/chained-writer-lock.feature`)
 - [x] `agent-conform watch-dir` (agent-stack-go#64): the chain verifier for a
   box, with its scenarios in `features/watch-dir.feature`, and the
   `ghcr.io/taipanbox/agent-conform:<tag>` image built by `release.yml` on a `v*` tag

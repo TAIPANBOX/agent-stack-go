@@ -264,11 +264,12 @@ func TestChainedWriterResumesAcrossALargeTail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewChainedWriter: %v", err)
 	}
-	// Push the file well past resumeWindow so reopening exercises the
-	// mid-file cut (the skipFirst partial-line path in tailEvent).
+	// Push the file well past resumeWindow, so that reopening it proves the
+	// tail is found by reading backwards from the end and not by reading a
+	// window of the file from its start.
 	e := vecEvent1()
 	e.Data = map[string]any{"pad": strings.Repeat("x", 4096)}
-	for range 300 {
+	for range 1100 {
 		if err := cw.Write(e); err != nil {
 			t.Fatalf("write: %v", err)
 		}

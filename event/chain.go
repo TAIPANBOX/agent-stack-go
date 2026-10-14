@@ -31,6 +31,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"unicode"
 
 	"github.com/gowebpki/jcs"
 )
@@ -39,12 +40,17 @@ import (
 // (SPEC §6.5: `^sha256:[0-9a-f]{64}$`).
 const ChainHashPrefix = "sha256:"
 
-// resumeWindow is how far back NewChainedWriter reads when seeding the
-// chain from an existing file's tail. One complete event line always fits:
-// the schema caps nothing, but real envelopes are hundreds of bytes; 1 MiB
-// of slack is orders of magnitude beyond any line this stack writes (and
-// matches Scan's own max line buffer).
-const resumeWindow = 1 << 20
+// resumeWindow is the longest last line a ChainedWriter will look back for
+// when it reads the tail of its file, which it does before every append. It
+// is VerifyChain's own line cap, so any line the verifier can judge, a writer
+// can chain from; a last line longer than this starts a fresh chain, which
+// VerifyChain reports as a restart and never as a break. Real envelopes are
+// hundreds of bytes, so the search almost always ends in its first read.
+const resumeWindow = 4 << 20
+
+// tailChunk is the first read from the end of the file, doubled while the
+// last line has not been found and resumeWindow has not been reached.
+const tailChunk = 8 << 10
 
 // Canonicalize returns the RFC 8785 (JCS) canonical serialization of e with
 // the prev_hash field removed. The removal is by construction, not by string
@@ -138,17 +144,45 @@ func digest(canonical []byte) string {
 }
 
 // ChainedWriter is Writer plus the SPEC §6.5 prev_hash chain: every event
-// written carries the hash of the event before it, under the same mutex
-// that already serializes the underlying NDJSON writes (a chain needs a
-// single serialization point, and the writer's lock is exactly that).
+// written carries the hash of the event before it in the FILE.
 //
-// The writer is the chain's authority: whatever a caller left in
-// Event.PrevHash is overwritten (head events get none). On open, an
-// existing file's tail is re-parsed to RESUME its chain, so one file stays
-// one chain across process restarts; an unreadable or malformed tail
-// starts a fresh chain instead of refusing to write - the exporters this
-// package mirrors are fail-open by contract, and a verifier will surface
-// the restart honestly rather than the process going quiet.
+// The file is the chain's authority, not this value. Every Write takes an
+// exclusive lock on the file (flock(2), see lock_flock.go), reads the last
+// line actually on disk, stamps prev_hash from it, appends, and only then
+// releases the lock. So any number of writers, in one process or in many, on
+// one host or on several hosts sharing one file, produce ONE chain, in the
+// order the lock granted them. Whatever a caller left in Event.PrevHash is
+// overwritten (a head event gets none).
+//
+// It was not always so, and the way it failed is worth keeping. Until v1.1.0
+// a writer stamped prev_hash from the hash of ITS OWN previous write, held in
+// memory. That is right only while it is the file's only writer, and a shared
+// events bus does not guarantee that: a pod being replaced keeps appending
+// through its termination grace period while its successor has already
+// resumed the chain, and a service and its CronJob append to one file by
+// design. Each such interleaving was a chain_broken on an honest stream.
+//
+// Durability: Write does not fsync. Ordering and visibility to the next
+// writer are what the chain needs, and the lock provides both (on a local
+// file the page cache is shared, and a Linux NFS client writes back what was
+// written under a lock when it is released). What survives the loss of the
+// host's power is a separate property no writer in the estate has claimed,
+// and a truncated tail resumes cleanly: the next writer chains from whatever
+// is last on disk.
+//
+// On open, an existing file's tail is read under the same lock, and
+// ResumedFrom reports it; an unreadable or malformed tail starts a fresh
+// chain instead of refusing to write - the exporters this package mirrors
+// are fail-open by contract, and a verifier will surface the restart honestly
+// rather than the process going quiet.
+//
+// mu serializes this writer's own goroutines, which the file lock does not:
+// the lock belongs to the open file, and every goroutine here shares one.
+//
+// The fields keep the names, types and layout 1.0 recorded in api/surface.txt,
+// whose reader prints unexported fields too; next keeps its meaning, the
+// prev_hash for the next event, but is now read from the file at the start of
+// each Write rather than carried over from the last one.
 type ChainedWriter struct {
 	mu   sync.Mutex
 	file *os.File
@@ -158,109 +192,205 @@ type ChainedWriter struct {
 	resumedFrom string
 }
 
-// NewChainedWriter opens path for append (creating it if absent) and seeds
-// the chain from the last well-formed event line already in the file, if
-// any.
+// The lock is taken and released through these two, so a test can make
+// either fail. Nothing else assigns them.
+var (
+	lockForAppend     = lockExclusive
+	unlockAfterAppend = unlockFile
+)
+
+// testHookBeforeAppend runs under the file lock, after prev_hash has been
+// read from the file and immediately before the line is appended. A test sets
+// it to observe that the lock is still held there; it does nothing otherwise.
+var testHookBeforeAppend = func() {}
+
+// NewChainedWriter opens path for append (creating it if absent) and reads
+// the last well-formed event line already in the file, if any, under the
+// file lock. It fails when the file cannot be locked at all, because every
+// Write would: better that a service learns so when it starts than from a
+// stream that goes quiet.
 func NewChainedWriter(path string) (*ChainedWriter, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("event: open %s: %w", path, err)
 	}
+	if err := lockForAppend(f); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("event: lock %s: %w", path, err)
+	}
 	cw := &ChainedWriter{file: f}
-	if last, ok := tailLine(f); ok {
-		if h, err := ChainHashRaw(last); err == nil {
-			cw.next = h
+	if t, err := readTail(f); err == nil && t.line != nil {
+		if h, err := ChainHashRaw(t.line); err == nil {
 			cw.resumedFrom = h
 		}
+	}
+	if err := unlockAfterAppend(f); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("event: unlock %s: %w", path, err)
 	}
 	return cw, nil
 }
 
 // ResumedFrom reports the hash this writer's chain resumed from at open, or
 // "" when it started fresh (empty file, or an unreadable/malformed tail).
+// It is what the file held then; every Write reads the file again.
 func (cw *ChainedWriter) ResumedFrom() string {
 	cw.mu.Lock()
 	defer cw.mu.Unlock()
 	return cw.resumedFrom
 }
 
-// Write stamps e with the chain's current prev_hash (none at a head),
-// appends it as one NDJSON line, and advances the chain to hash(e). Safe
-// for concurrent use; on a write error the chain does not advance, so the
-// next successful write re-links to the last line actually on disk.
+// Write takes the file lock, stamps e with the hash of the last event line on
+// disk (none when the file holds no well-formed event at its end), appends e
+// as one NDJSON line and releases the lock. Safe for concurrent use, from
+// goroutines sharing this writer and from other writers on the same file.
+//
+// A file whose last byte is not a newline (a writer killed mid-line) gets one
+// before e, so e is never glued onto a fragment: the fragment stays one
+// malformed line and e starts a fresh chain after it, a restart and not a
+// break.
+//
+// Nothing is written when the lock cannot be taken or the tail cannot be
+// read: an unlocked append to a shared file is the fault this type exists to
+// prevent. An error from releasing the lock is returned even though the line
+// is on disk, because a lock that may still be held stalls every other writer
+// of the file and the caller should hear about it.
 func (cw *ChainedWriter) Write(e Event) error {
 	cw.mu.Lock()
 	defer cw.mu.Unlock()
 
+	if err := lockForAppend(cw.file); err != nil {
+		return fmt.Errorf("event: lock: %w", err)
+	}
+	// Released below in the ordinary case. The deferred release is for a
+	// panic in between: a caller that recovers (net/http does, per request)
+	// would otherwise go on holding the lock, and every writer of the file,
+	// on every node, would wait on it.
+	released := false
+	defer func() {
+		if !released {
+			unlockAfterAppend(cw.file)
+		}
+	}()
+	err := cw.appendLocked(e)
+	released = true
+	if uerr := unlockAfterAppend(cw.file); uerr != nil && err == nil {
+		err = fmt.Errorf("event: unlock: %w", uerr)
+	}
+	return err
+}
+
+// appendLocked is Write's body, run with cw.mu and the file lock held.
+func (cw *ChainedWriter) appendLocked(e Event) error {
+	t, err := readTail(cw.file)
+	if err != nil {
+		return fmt.Errorf("event: read tail: %w", err)
+	}
+	cw.next = ""
+	if t.line != nil {
+		if h, err := ChainHashRaw(t.line); err == nil {
+			cw.next = h
+		}
+	}
 	e.PrevHash = cw.next
 	data, err := Marshal(e)
 	if err != nil {
 		return err
 	}
-	// Hash what goes on disk, not the value it came from. The two agree here
-	// because this struct IS the origin of this line, and saying so in one
-	// path rather than two removes the question of whether they still agree.
-	next, err := ChainHashRaw(data)
-	if err != nil {
+	// A line the next writer could not hash would end the chain at it, so it
+	// is refused here rather than written. This struct is the origin of the
+	// line, so hashing the bytes and hashing the struct agree; hashing the
+	// bytes keeps the question from arising.
+	if _, err := ChainHashRaw(data); err != nil {
 		return err
 	}
-	if _, err := cw.file.Write(append(data, '\n')); err != nil {
+	line := make([]byte, 0, len(data)+2)
+	if !t.endsNewline {
+		line = append(line, '\n')
+	}
+	line = append(line, data...)
+	line = append(line, '\n')
+
+	testHookBeforeAppend()
+	if _, err := cw.file.Write(line); err != nil {
 		return fmt.Errorf("event: write: %w", err)
 	}
-	cw.next = next
 	return nil
 }
 
-// Close closes the underlying file.
+// Close closes the underlying file, which also releases a lock if one were
+// still held.
 func (cw *ChainedWriter) Close() error {
 	return cw.file.Close()
 }
 
-// tailLine returns the last well-formed event LINE in f, as written, reading
-// at most resumeWindow bytes from the end. false when the file is empty or its
-// last non-blank line does not parse as an event.
+// tail is what readTail found at the end of a file.
+type tail struct {
+	// The last non-blank line, as written, when it parses as an event; nil
+	// when the file is empty, blank, ends in a line that is not an event, or
+	// ends in a line longer than resumeWindow.
+	line []byte
+	// Whether the file is empty or its last byte is a newline, so that an
+	// append starts a line of its own.
+	endsNewline bool
+}
+
+// readTail reads backwards from the end of f, tailChunk bytes first and
+// doubling up to resumeWindow, until it holds the whole last non-blank line.
+// Only an I/O error is an error; every shape of file is an answer.
 //
-// It returns bytes and not an Event on purpose. The caller resumes a chain
-// from this line, and the resumed hash has to be the one every other reader of
-// the file computes, which means it is taken over the object as written. It
+// It returns the line's bytes and not an Event on purpose. The caller chains
+// from this line, and that hash has to be the one every other reader of the
+// file computes, which means it is taken over the object as written. It
 // still PARSES the line, because a resume point has to be a well-formed event
 // and not merely the last bytes before EOF, but the parse is the check and the
 // bytes are the answer.
-func tailLine(f *os.File) ([]byte, bool) {
+func readTail(f *os.File) (tail, error) {
 	info, err := f.Stat()
-	if err != nil || info.Size() == 0 {
-		return nil, false
+	if err != nil {
+		return tail{}, err
 	}
-	start := info.Size() - resumeWindow
-	skipFirst := start > 0 // a mid-file cut: the first scanned line is partial
-	if start < 0 {
-		start = 0
-	}
-	buf := make([]byte, info.Size()-start)
-	if _, err := f.ReadAt(buf, start); err != nil && err != io.EOF {
-		return nil, false
+	size := info.Size()
+	if size == 0 {
+		return tail{endsNewline: true}, nil
 	}
 
-	var last []byte
-	first := true
-	for line := range bytes.Lines(buf) {
-		if first && skipFirst {
-			first = false
-			continue
+	var buf []byte // the bytes [size-len(buf), size) of the file
+	for n := int64(tailChunk); ; n *= 2 {
+		n = min(n, size, resumeWindow)
+		if more := n - int64(len(buf)); more > 0 {
+			chunk := make([]byte, more, n)
+			// Every byte of the range was inside the size just measured, so
+			// a short read (io.EOF included) means the file shrank under the
+			// lock, which no append-only writer does: an error, not a guess.
+			if _, err := f.ReadAt(chunk, size-n); err != nil {
+				return tail{}, err
+			}
+			buf = append(chunk, buf...)
 		}
-		first = false
-		if trimmed := bytes.TrimSpace(line); len(trimmed) > 0 {
-			last = trimmed
+		t := tail{endsNewline: buf[len(buf)-1] == '\n'}
+
+		end := len(bytes.TrimRightFunc(buf, isSpace))
+		start := bytes.LastIndexByte(buf[:end], '\n') + 1
+		atStart := n == size // buf begins at the first byte of the file
+		switch {
+		case end == 0 && atStart:
+			return t, nil // nothing but blank lines
+		case start > 0 || atStart:
+			if end > 0 {
+				line := bytes.TrimSpace(buf[start:end])
+				if _, err := Unmarshal(line); err == nil {
+					t.line = line
+				}
+			}
+			return t, nil
+		case n == resumeWindow:
+			return t, nil // a last line longer than the window: a fresh chain
 		}
 	}
-	if last == nil {
-		return nil, false
-	}
-	if _, err := Unmarshal(last); err != nil {
-		return nil, false
-	}
-	return last, true
 }
+
+func isSpace(r rune) bool { return unicode.IsSpace(r) }
 
 // ChainBreak is one genuine chain violation: an event whose prev_hash is
 // present but does not match the hash of the event on the line before it.
