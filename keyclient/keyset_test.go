@@ -296,7 +296,11 @@ func TestRunWithAFloorIntervalRefusesToStart(t *testing.T) {
 	s := newStubCustody(t, clk)
 	_, j := newJWKS(t, s, clk)
 	var reported error
-	j.Run(context.Background(), time.Millisecond, func(err error) { reported = err })
+	// A deadline, so that a Run which ignores its floor fails on its assertion
+	// rather than looping until the test binary's timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+	j.Run(ctx, time.Millisecond, func(err error) { reported = err })
 	if reported == nil {
 		t.Fatal("Run started with a one-millisecond interval and reported nothing")
 	}
