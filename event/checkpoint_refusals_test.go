@@ -265,10 +265,13 @@ func TestTheCheckpointedWriterNeedsADirectoryAndASigner(t *testing.T) {
 	}
 }
 
-func TestAStreamShorterThanItsHashedBytesIsAnErrorAtTheNextWrite(t *testing.T) {
+// SPEC 6.5.1: a writer that finds its stream shorter than the bytes it hashed
+// hashes it again from byte zero before it writes another checkpoint.
+func TestAShrunkStreamIsHashedAgainFromByteZeroBeforeTheNextCheckpoint(t *testing.T) {
 	dir := t.TempDir()
 	stream := filepath.Join(dir, "wardryx.ndjson")
-	w, err := NewChainedWriterWithCheckpoints(stream, CheckpointConfig{Dir: dir, Signer: newCkSigner(t), Every: 100, Now: (&ckClock{now: ckT0()}).Now})
+	s := newCkSigner(t)
+	w, err := NewChainedWriterWithCheckpoints(stream, CheckpointConfig{Dir: dir, Signer: s, Every: 1, Now: (&ckClock{now: ckT0()}).Now})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -280,10 +283,18 @@ func TestAStreamShorterThanItsHashedBytesIsAnErrorAtTheNextWrite(t *testing.T) {
 	if err := os.Truncate(stream, 0); err != nil {
 		t.Fatal(err)
 	}
-	if err := w.Write(ckEvent(3)); err == nil || !strings.Contains(err.Error(), "shorter than") {
-		t.Fatalf("a stream shorter than the bytes already hashed is an error, got %v", err)
+	if err := w.Write(ckEvent(3)); err != nil {
+		t.Fatalf("a shrunk stream is hashed again, not refused for ever: %v", err)
 	}
 	_ = w.Close()
+	rep := ckVerify(t, stream, ckSidecarPath(dir, "wardryx.ndjson"), s)
+	last := ckRec(t, rep.CheckpointReport, len(rep.Records)-1)
+	if last.Status != CheckpointValid {
+		t.Fatalf("the checkpoint after the rehash verifies against the stream as it now is: %+v", last)
+	}
+	if rep.Records[0].Status != CheckpointRefused {
+		t.Fatalf("the checkpoint written before the rewrite must be refused against the stream now: %+v", rep.Records[0])
+	}
 }
 
 func TestASidecarRecordOverTheCapStopsTheWriter(t *testing.T) {

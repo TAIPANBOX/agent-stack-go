@@ -481,7 +481,11 @@ func (c *checkpointer) advance(events *os.File) (int, error) {
 		return 0, err
 	}
 	if fi.Size() < c.off {
-		return 0, fmt.Errorf("the stream is shorter than the %d bytes this writer had hashed", c.off)
+		// The stream shrank under this writer. SPEC 6.5.1: no checkpoint until the
+		// file has been hashed again from byte zero, so it is, and the next checkpoint
+		// covers what the file holds now.
+		c.sum.Reset()
+		c.off, c.count, c.head, c.last = 0, 0, "", nil
 	}
 	if fi.Size() == c.off {
 		return 0, nil
