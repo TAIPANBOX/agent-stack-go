@@ -32,8 +32,11 @@ func newWdSigner(t *testing.T) *wdSigner {
 	if err != nil {
 		t.Fatal(err)
 	}
-	x := key.PublicKey.X.FillBytes(make([]byte, 32))
-	y := key.PublicKey.Y.FillBytes(make([]byte, 32))
+	pt, err := key.PublicKey.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	x, y := pt[1:33], pt[33:65]
 	in := fmt.Sprintf(`{"crv":"P-256","kty":"EC","x":"%s","y":"%s"}`,
 		base64.RawURLEncoding.EncodeToString(x), base64.RawURLEncoding.EncodeToString(y))
 	sum := sha256.Sum256([]byte(in))
@@ -57,8 +60,11 @@ func (s *wdSigner) Sign(in []byte) ([]byte, error) {
 // wdKeysFile writes the public key of s as the -checkpoint-keys file.
 func wdKeysFile(t *testing.T, dir string, s *wdSigner) string {
 	t.Helper()
-	x := s.key.PublicKey.X.FillBytes(make([]byte, 32))
-	y := s.key.PublicKey.Y.FillBytes(make([]byte, 32))
+	pt, err := s.key.PublicKey.Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	x, y := pt[1:33], pt[33:65]
 	b, _ := json.Marshal(map[string]map[string]string{
 		s.kid: {"crv": "P-256", "kty": "EC",
 			"x": base64.RawURLEncoding.EncodeToString(x), "y": base64.RawURLEncoding.EncodeToString(y)},

@@ -56,7 +56,6 @@ var (
 	checkpointGenesis = "sha256:" + strings.Repeat("0", 64)
 	checkpointHashRE  = regexp.MustCompile(`^sha256:[0-9a-f]{64}$`)
 	checkpointAtRE    = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$`)
-	checkpointNameRE  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*\.ndjson$`)
 )
 
 // CheckpointSigner signs the signing input of a checkpoint record.

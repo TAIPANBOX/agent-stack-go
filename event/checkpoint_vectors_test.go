@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"math/big"
 	"os"
 	"strings"
 	"testing"
@@ -198,7 +197,11 @@ func vecPublicKey(t *testing.T, v vecFile) *ecdsa.PublicKey {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &ecdsa.PublicKey{Curve: elliptic.P256(), X: new(big.Int).SetBytes(x), Y: new(big.Int).SetBytes(y)}
+	pub, err := ecdsa.ParseUncompressedPublicKey(elliptic.P256(), append(append([]byte{4}, x...), y...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return pub
 }
 
 func vecVerifier(t *testing.T, v vecFile) func(string) (*ecdsa.PublicKey, bool) {

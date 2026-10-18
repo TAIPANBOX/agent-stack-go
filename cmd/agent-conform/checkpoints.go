@@ -15,7 +15,6 @@ package main
 // the file, and their format is that service's to define (keyryx, design K3).
 
 import (
-	"crypto/ecdh"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/sha256"
@@ -24,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math/big"
 	"os"
 	"path/filepath"
 
@@ -75,14 +73,15 @@ func loadCheckpointKeys(path string) (map[string]*ecdsa.PublicKey, error) {
 		if err != nil || len(y) != 32 {
 			return nil, fmt.Errorf("key %q: y is not 32 bytes of base64url", kid)
 		}
-		// ecdh validates the point is on the curve; ecdsa does not.
-		if _, err := ecdh.P256().NewPublicKey(append(append([]byte{4}, x...), y...)); err != nil {
+		// ParseUncompressedPublicKey checks the point is on the curve.
+		pub, err := ecdsa.ParseUncompressedPublicKey(elliptic.P256(), append(append([]byte{4}, x...), y...))
+		if err != nil {
 			return nil, fmt.Errorf("key %q is not a point on P-256", kid)
 		}
 		if thumb := rfc7638P256(j.X, j.Y); thumb != kid {
 			return nil, fmt.Errorf("key %q is not the RFC 7638 thumbprint of its own x and y (%s)", kid, thumb)
 		}
-		keys[kid] = &ecdsa.PublicKey{Curve: elliptic.P256(), X: new(big.Int).SetBytes(x), Y: new(big.Int).SetBytes(y)}
+		keys[kid] = pub
 	}
 	return keys, nil
 }

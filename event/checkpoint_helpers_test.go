@@ -56,8 +56,11 @@ func (s *ckSigner) keys(kid string) (*ecdsa.PublicKey, bool) {
 // ckThumbprint is RFC 7638 for an EC key, written out so it does not share code
 // with the thing it checks.
 func ckThumbprint(pub *ecdsa.PublicKey) string {
-	x := pub.X.FillBytes(make([]byte, 32))
-	y := pub.Y.FillBytes(make([]byte, 32))
+	pt, err := pub.Bytes()
+	if err != nil {
+		panic(err)
+	}
+	x, y := pt[1:33], pt[33:65]
 	in := fmt.Sprintf(`{"crv":"P-256","kty":"EC","x":"%s","y":"%s"}`,
 		base64.RawURLEncoding.EncodeToString(x), base64.RawURLEncoding.EncodeToString(y))
 	sum := sha256.Sum256([]byte(in))
