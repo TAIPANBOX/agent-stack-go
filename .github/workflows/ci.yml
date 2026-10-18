@@ -103,6 +103,9 @@ jobs:
       - name: the vendored schemas match the repo that owns them
         working-directory: agent-stack-go
         run: ./scripts/schemas-in-sync.sh
+      - name: the vendored checkpoint vectors match the repo that owns them
+        working-directory: agent-stack-go
+        run: ./scripts/checkpoint-vectors-in-sync.sh
 
       # The teeth harness runs HERE rather than in `build`, and the reason is
       # the layout above. It exercises all four gates, one of which is

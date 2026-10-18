@@ -7,7 +7,7 @@
 [![CI](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml/badge.svg)](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go)
 ![Go](https://img.shields.io/badge/go-1.27-00ADD8.svg)
-![tests](https://img.shields.io/badge/tests-267-brightgreen.svg)
+![tests](https://img.shields.io/badge/tests-329-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-v1.3.0-success.svg)
 
@@ -453,7 +453,7 @@ schedule and **alerts**: a break becomes an event on the bus, where the
 notifier and the console already look.
 
 ```sh
-agent-conform watch-dir [-out PATH] [-state PATH] [-every 60s] <dir>
+agent-conform watch-dir [-out PATH] [-state PATH] [-every 60s] [-checkpoints DIR -checkpoint-keys FILE] <dir>
 ```
 
 It walks every `*.ndjson` in ONE flat directory (the bus is flat; a
@@ -466,6 +466,23 @@ its own stream with the library's own `ChainedWriter`:
 |---|---|---|---|
 | `chain_broken` | high | a `prev_hash` does not match the line before it | `file`, `line` (the first such line), `kind` (`prev_hash_mismatch`), `breaks` (how many), `restarts`, `malformed_lines`, `unverifiable_links`, `expected`/`found` (clipped), `verifier` |
 | `chain_unchained` | low | two or more events and not one carries a `prev_hash` | `file`, `kind` (`no_prev_hash`), `events`, `malformed_lines`, `unverifiable_links`, `verifier` |
+| `chain_restarted` | medium, or high when no resume checkpoint explains it | a head line after the first: the chain began again | `file`, `kind` (`restart`), `line`, `after_line` (the last well-formed event before it, 0 for none), `explained`, `malformed_lines`, `unverifiable_links`, `verifier` |
+
+A restart is not a break (SPEC 6.5 and invariant 7 of the library): the chain
+began again, legally, after a process that could not resume. It is medium when
+a valid **resume checkpoint** names the line before it, and high when none
+does, because then nothing says why the chain began again.
+
+With `-checkpoints DIR -checkpoint-keys FILE` the verifier also checks each
+stream's checkpoint sidecar (SPEC 6.5.1, `<stream>.ckpt.ndjson` in `DIR`). A
+record that does not hold is a **refusal**: the stream was rewritten before its
+count (its prefix no longer matches), or it was truncated below its count. A
+refusal is printed, makes the run exit `1` the first time it is seen, and is
+remembered in the state file. It is not put on the bus: SPEC 6.2 names no event
+type for it, and the keyryx witness types are where that is designed. `FILE`
+holds the public keys that verify the signatures, each kid its RFC 7638
+thumbprint. `-checkpoints` without `-checkpoint-keys`, or the reverse, is a
+usage error, because a signature nobody can check is not a pass.
 
 An unchained stream is not a broken one: the field is optional by SPEC 6.5. It
 is reported once so the operator knows which streams nobody can verify. A
@@ -488,7 +505,7 @@ restart count shows a verifier that is not verifying.
 | Exit | Meaning |
 |---|---|
 | 0 | every stream verified, nothing NEW to report (an unchained stream, or a break already reported, does not change that) |
-| 1 | at least one NEW `chain_broken` was reported |
+| 1 | at least one NEW `chain_broken` was reported, or a NEW checkpoint refusal |
 | 2 | usage error, or something could not be done: the directory is missing or holds no stream, a file could not be read to its end (over a cap, an oversize line), the output or state could not be written. 2 wins over 1: the alerts are on the bus either way, and a run that could not finish must not look like one that did |
 
 What it will not do:

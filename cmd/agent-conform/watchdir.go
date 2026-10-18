@@ -28,6 +28,17 @@ package main
 //     carries a prev_hash. That is not a break, the field is optional by SPEC
 //     6.5, but a stream nobody can verify is a stream a forger need not
 //     bother to chain, and the operator should know which streams those are.
+//   - chain_restarted (severity medium, or high): a head line after the first,
+//     one per restart. A restart is not a break (invariant 7). It is medium when
+//     a valid resume checkpoint names the last well-formed line before it, and
+//     high when none does, since then nothing says why the chain began again.
+//
+// WITH -checkpoints, each stream's sidecar (SPEC 6.5.1) is verified too. A record
+// that does not hold is a refusal: the stream was rewritten before that record's
+// count, or truncated below it. A refusal is printed and makes the run exit 1 the
+// first time it is seen, but it is not put on the bus: SPEC 6.2 names no event type
+// for it, and the keyryx witness types are where that is designed. Refusals are
+// remembered in the state file like alerts.
 //
 // Each finding is written ONCE: the (file, kind, line) is remembered in a
 // small state file, so a cron that runs every minute does not repeat an alert
@@ -53,7 +64,7 @@ package main
 //
 //	0  every stream verified; nothing NEW to report (an unchained stream, or a
 //	   break already reported, does not change that)
-//	1  at least one NEW chain_broken was reported
+//	1  at least one NEW chain_broken was reported, or a NEW checkpoint refusal
 //	2  usage error, or something could not be done: a missing directory, no
 //	   stream in it, a file that could not be read to its end (over a cap, an
 //	   oversize line), an output or state that could not be written. 2 wins
@@ -78,6 +89,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -105,6 +117,12 @@ const (
 
 	typeChainBroken    = "chain_broken"
 	typeChainUnchained = "chain_unchained"
+	typeChainRestarted = "chain_restarted"
+
+	// typeCheckpointRefused is kept in the state file only. It is not an event.
+	typeCheckpointRefused = "checkpoint_refused"
+
+	kindRestart = "restart"
 
 	kindMismatch  = "prev_hash_mismatch"
 	kindUnchained = "no_prev_hash"
@@ -147,10 +165,11 @@ type stream struct {
 
 // verdict is what verifying one stream produced.
 type verdict struct {
-	stream stream
-	report event.ChainReport
-	err    error // the file could not be read to its end
-	events int   // well-formed events seen
+	stream   stream
+	report   event.ChainReport
+	restarts []event.Restart // every head after the first line
+	err      error           // the file could not be read to its end
+	events   int             // well-formed events seen
 }
 
 // watchState is the only memory between runs.
@@ -168,13 +187,19 @@ type reported struct {
 
 func (r reported) key() string { return fmt.Sprintf("%s\x00%s\x00%d", r.File, r.Type, r.Line) }
 
-// finding is something to put on the bus.
+// finding is something to put on the bus, or, for a checkpoint refusal, to remember.
 type finding struct {
 	file    string
 	typ     string
 	line    int
 	brk     event.ChainBreak // the first break, for a chain_broken
 	verdict verdict
+	// for a chain_restarted: the last well-formed line before the restart, and
+	// whether a resume checkpoint names it.
+	after     int
+	explained bool
+	// for a checkpoint_refused: the reason, which is not put on the bus.
+	refusal string
 }
 
 func (f finding) key() string { return reported{File: f.file, Type: f.typ, Line: f.line}.key() }
@@ -186,6 +211,7 @@ func watchUsage(w io.Writer) {
 	fmt.Fprintln(w, "recursive) and appends ONE agent-event per newly found problem to its own stream:")
 	fmt.Fprintln(w, "  chain_broken     (high) the first line whose prev_hash does not match, per file")
 	fmt.Fprintln(w, "  chain_unchained  (low)  two or more events and no prev_hash at all, per file")
+	fmt.Fprintln(w, "  chain_restarted  (medium, or high when no resume checkpoint explains it) per restart")
 	fmt.Fprintln(w, "Each finding is written once; a state file remembers what was already reported.")
 	fmt.Fprintln(w, "It writes nothing but its own output and state, and never to a stream it reads.")
 	fmt.Fprintln(w)
@@ -194,12 +220,16 @@ func watchUsage(w io.Writer) {
 	fmt.Fprintln(w, "  -state <path>          its memory (default agent-conform.state.json beside -out)")
 	fmt.Fprintln(w, "  -max-line-bytes <n>    longest line it will read (default 1048576, at most 4194304)")
 	fmt.Fprintln(w, "  -max-file-bytes <n>    most bytes it will read per file (default 268435456)")
+	fmt.Fprintln(w, "  -checkpoints <dir>     verify each stream's checkpoint sidecar (SPEC 6.5.1) in <dir>;")
+	fmt.Fprintln(w, "                         needs -checkpoint-keys. A refused record exits 1 once")
+	fmt.Fprintln(w, "  -checkpoint-keys <f>   the keys that verify them: a JSON object from kid to an EC")
+	fmt.Fprintln(w, "                         P-256 public key {crv,kty,x,y}, each kid its RFC 7638 thumbprint")
 	fmt.Fprintln(w, "  -every <duration>      keep running, one pass per interval (at least 10s), for a")
 	fmt.Fprintln(w, "                         container with no shell to loop in; exits 2 when a pass")
 	fmt.Fprintln(w, "                         cannot do its job so a supervisor restarts it, 0 on SIGTERM")
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Flags go before <dir>. One run, then exit: a CronJob or a loop drives the schedule.")
-	fmt.Fprintln(w, "Exit codes: 0 nothing new, 1 a NEW chain_broken was reported, 2 usage or I/O error.")
+	fmt.Fprintln(w, "Exit codes: 0 nothing new, 1 a NEW chain_broken or checkpoint refusal, 2 usage or I/O error.")
 }
 
 // watchConfig is what the flags resolved to.
@@ -208,6 +238,10 @@ type watchConfig struct {
 	maxLine                 int
 	maxFile                 int64
 	every                   time.Duration
+	// ckDir is the directory of checkpoint sidecars, and keys the public keys
+	// that verify them. Both are set together or not at all.
+	ckDir string
+	keys  map[string]*ecdsa.PublicKey
 }
 
 // minEvery is the shortest loop interval. Below it a typo (`-every 1`) would
@@ -224,6 +258,8 @@ func runWatchDir(args []string, stdout, stderr io.Writer) int {
 	maxLine := fs.Int("max-line-bytes", defaultMaxLine, "")
 	maxFile := fs.Int64("max-file-bytes", defaultMaxFile, "")
 	every := fs.Duration("every", 0, "")
+	ckDirFlag := fs.String("checkpoints", "", "")
+	keysFlag := fs.String("checkpoint-keys", "", "")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			watchUsage(stdout)
@@ -271,6 +307,22 @@ func runWatchDir(args []string, stdout, stderr io.Writer) int {
 	}
 
 	cfg := watchConfig{dir: dir, outPath: outPath, statePath: sPath, maxLine: *maxLine, maxFile: *maxFile, every: *every}
+	if *ckDirFlag != "" || *keysFlag != "" {
+		if *ckDirFlag == "" || *keysFlag == "" {
+			fmt.Fprintln(stderr, "agent-conform watch-dir: -checkpoints and -checkpoint-keys go together: a checkpoint whose signature cannot be checked is not a pass")
+			return 2
+		}
+		if info, err := os.Stat(*ckDirFlag); err != nil || !info.IsDir() {
+			fmt.Fprintf(stderr, "agent-conform watch-dir: -checkpoints %s is not a directory\n", *ckDirFlag)
+			return 2
+		}
+		keys, err := loadCheckpointKeys(*keysFlag)
+		if err != nil {
+			fmt.Fprintf(stderr, "agent-conform watch-dir: -checkpoint-keys %s: %v\n", *keysFlag, err)
+			return 2
+		}
+		cfg.ckDir, cfg.keys = *ckDirFlag, keys
+	}
 	if cfg.every > 0 {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
@@ -374,12 +426,39 @@ func watchPass(cfg watchConfig, stdout, stderr io.Writer) (int, int) {
 	}
 
 	code := 0
-	var findings []finding
+	var findings, refusals []finding
 	for _, s := range streams {
 		v := verifyStream(s, cfg.maxLine, cfg.maxFile)
 		if v.err != nil {
 			fmt.Fprintf(stderr, "ERROR %s: %v\n", s.name, v.err)
 			code = 2
+		}
+		// The sidecar first: its resume records say which restarts are explained.
+		var resumes []int
+		if cfg.ckDir != "" {
+			rep, present, err := checkStreamCheckpoints(s, cfg.ckDir, cfg.keys, cfg.maxFile)
+			switch {
+			case err != nil:
+				fmt.Fprintf(stderr, "ERROR %s: checkpoints: %v\n", s.name, err)
+				code = 2
+			case !present:
+				fmt.Fprintf(stdout, "NOTE %s: no checkpoint sidecar\n", s.name)
+			default:
+				resumes = rep.ResumeCounts()
+				for _, r := range rep.Records {
+					if r.Status != event.CheckpointRefused {
+						continue
+					}
+					f := finding{file: s.name, typ: typeCheckpointRefused, line: r.Index, refusal: r.Refusal}
+					status := "alert pending"
+					if known[f.key()] {
+						status = "already reported"
+					} else {
+						refusals = append(refusals, f)
+					}
+					fmt.Fprintf(stdout, "FAIL %s: checkpoint record %d refused: %s; %s\n", s.name, r.Index, r.Refusal, status)
+				}
+			}
 		}
 		switch {
 		case len(v.report.Breaks) > 0:
@@ -408,6 +487,32 @@ func watchPass(cfg watchConfig, stdout, stderr io.Writer) (int, int) {
 			fmt.Fprintf(stdout, "NOTE %s: no event to verify (%d line(s), %d malformed)\n", s.name, v.report.Lines, v.report.Malformed)
 		default:
 			fmt.Fprintf(stdout, "PASS %s (hash chain: %d chained, %d head(s))\n", s.name, v.report.Chained, len(v.report.HeadLines))
+		}
+		// Every head after the first is a restart. A stream nobody chains has a head
+		// on every line, and that is one chain_unchained, not a restart at each line.
+		if !isUnchained(v) {
+			for _, rs := range v.restarts {
+				f := finding{
+					file:      s.name,
+					typ:       typeChainRestarted,
+					line:      rs.Line,
+					after:     rs.After,
+					explained: explainedBy(resumes, rs.After),
+					verdict:   v,
+				}
+				status := "alert pending"
+				if known[f.key()] {
+					status = "already reported"
+				} else {
+					findings = append(findings, f)
+				}
+				how := "unexplained"
+				if f.explained {
+					how = "explained by a resume checkpoint"
+				}
+				fmt.Fprintf(stdout, "NOTE %s: chain restarted at line %d (after line %d), %s; %s\n",
+					s.name, f.line, f.after, how, status)
+			}
 		}
 	}
 
@@ -448,12 +553,27 @@ func watchPass(cfg watchConfig, stdout, stderr io.Writer) (int, int) {
 		}
 	}
 
-	fmt.Fprintf(stdout, "agent-conform watch-dir: %d stream(s), %d new alert(s) written (%d chain_broken)\n",
-		len(streams), written, newBroken)
+	newRefused := 0
+	for _, f := range refusals {
+		state.Reported = append(state.Reported, reported{
+			File: f.file, Type: typeCheckpointRefused, Line: f.line,
+			At: watchNow().UTC().Format(time.RFC3339),
+		})
+		newRefused++
+	}
+	if newRefused > 0 {
+		if err := saveWatchState(sPath, state); err != nil {
+			fmt.Fprintf(stderr, "ERROR state %s: %v (a checkpoint refusal may be repeated)\n", sPath, err)
+			code = 2
+		}
+	}
+
+	fmt.Fprintf(stdout, "agent-conform watch-dir: %d stream(s), %d new alert(s) written (%d chain_broken), %d new checkpoint refusal(s)\n",
+		len(streams), written, newBroken, newRefused)
 	if code == 2 {
 		return 2, written
 	}
-	if newBroken > 0 {
+	if newBroken > 0 || newRefused > 0 {
 		return 1, written
 	}
 	return 0, written
@@ -572,8 +692,9 @@ func verifyStream(s stream, maxLine int, maxFile int64) verdict {
 	}
 
 	capped := &byteCapReader{r: f, max: maxFile}
-	report, err := event.VerifyChain(&lineCapReader{r: capped, max: maxLine, line: 1})
+	report, restarts, err := event.VerifyChainRestarts(&lineCapReader{r: capped, max: maxLine, line: 1})
 	v.report = report
+	v.restarts = restarts
 	v.events = report.Lines - report.Malformed
 	if err != nil {
 		var long *lineTooLongError
@@ -632,6 +753,16 @@ func alertFor(f finding) event.Event {
 		e.Severity = event.SeverityLow
 		data["kind"] = kindUnchained
 		data["events"] = f.verdict.events
+	case typeChainRestarted:
+		// SPEC 6.2: medium, high when no resume checkpoint explains the restart.
+		e.Severity = event.SeverityMedium
+		if !f.explained {
+			e.Severity = event.SeverityHigh
+		}
+		data["kind"] = kindRestart
+		data["line"] = f.line
+		data["after_line"] = f.after
+		data["explained"] = f.explained
 	}
 	return e
 }

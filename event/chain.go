@@ -210,13 +210,21 @@ var testHookBeforeAppend = func() {}
 // Write would: better that a service learns so when it starts than from a
 // stream that goes quiet.
 func NewChainedWriter(path string) (*ChainedWriter, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0o644)
+	cw, _, err := openChainedWriter(path, nil)
+	return cw, err
+}
+
+// openChainedWriter opens the stream at path. With cfg set, the stream's sidecar
+// writer is opened too, and a resume record written if one is due, under the same
+// lock as the stream's tail is read.
+func openChainedWriter(path string, cfg *CheckpointConfig) (*ChainedWriter, *checkpointer, error) {
+	f, err := openAppend(path, os.O_RDWR)
 	if err != nil {
-		return nil, fmt.Errorf("event: open %s: %w", path, err)
+		return nil, nil, fmt.Errorf("event: open %s: %w", path, err)
 	}
 	if err := lockForAppend(f); err != nil {
 		f.Close()
-		return nil, fmt.Errorf("event: lock %s: %w", path, err)
+		return nil, nil, fmt.Errorf("event: lock %s: %w", path, err)
 	}
 	cw := &ChainedWriter{file: f}
 	if t, err := readTail(f); err == nil && t.line != nil {
@@ -224,11 +232,20 @@ func NewChainedWriter(path string) (*ChainedWriter, error) {
 			cw.resumedFrom = h
 		}
 	}
+	var ck *checkpointer
+	if cfg != nil {
+		ck, err = openCheckpointFor(f, path, cfg)
+		if err != nil {
+			_ = unlockAfterAppend(f)
+			f.Close()
+			return nil, nil, err
+		}
+	}
 	if err := unlockAfterAppend(f); err != nil {
 		f.Close()
-		return nil, fmt.Errorf("event: unlock %s: %w", path, err)
+		return nil, nil, fmt.Errorf("event: unlock %s: %w", path, err)
 	}
-	return cw, nil
+	return cw, ck, nil
 }
 
 // ResumedFrom reports the hash this writer's chain resumed from at open, or
@@ -256,6 +273,12 @@ func (cw *ChainedWriter) ResumedFrom() string {
 // is on disk, because a lock that may still be held stalls every other writer
 // of the file and the caller should hear about it.
 func (cw *ChainedWriter) Write(e Event) error {
+	return cw.write(e, nil)
+}
+
+// write is Write, and with ck set it also writes the checkpoints that are due
+// once the line is on disk (see CheckpointedWriter).
+func (cw *ChainedWriter) write(e Event, ck *checkpointer) error {
 	cw.mu.Lock()
 	defer cw.mu.Unlock()
 
@@ -273,6 +296,9 @@ func (cw *ChainedWriter) Write(e Event) error {
 		}
 	}()
 	err := cw.appendLocked(e)
+	if err == nil && ck != nil {
+		err = ck.afterAppend(cw.file)
+	}
 	released = true
 	if uerr := unlockAfterAppend(cw.file); uerr != nil && err == nil {
 		err = fmt.Errorf("event: unlock: %w", uerr)
@@ -429,12 +455,33 @@ func (r ChainReport) Ok() bool {
 	return len(r.Breaks) == 0
 }
 
+// Restart is one chain head after the first line of a stream: a restart. Line is
+// its 1-based line number, and After the number of the last well-formed event line
+// before it (0 when there is none).
+type Restart struct {
+	Line  int
+	After int
+}
+
 // VerifyChain checks the SPEC §6.5 chain over one NDJSON stream. Blank
 // lines are skipped; malformed lines are counted (and poison verification
 // of exactly the next chained event, reported in Unverifiable). It reads
 // the whole stream; the caller owns rewinding/closing r.
 func VerifyChain(r io.Reader) (ChainReport, error) {
+	report, _, err := verifyChain(r)
+	return report, err
+}
+
+// VerifyChainRestarts is VerifyChain, and also returns every restart with the last
+// well-formed event line before it, so a resume checkpoint can be matched to the
+// restart it explains.
+func VerifyChainRestarts(r io.Reader) (ChainReport, []Restart, error) {
+	return verifyChain(r)
+}
+
+func verifyChain(r io.Reader) (ChainReport, []Restart, error) {
 	var report ChainReport
+	var restarts []Restart
 
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
@@ -443,6 +490,7 @@ func VerifyChain(r io.Reader) (ChainReport, error) {
 	prevHash := ""    // hash of the previous well-formed event
 	prevSeen := false // any previous event at all? (a rotated segment may open mid-chain)
 	prevKnown := true // false right after a malformed line
+	lastEvent := 0    // the last well-formed event line so far (0 for none)
 	for sc.Scan() {
 		lineNo++
 		line := bytes.TrimSpace(sc.Bytes())
@@ -457,9 +505,14 @@ func VerifyChain(r io.Reader) (ChainReport, error) {
 			prevKnown = false
 			continue
 		}
+		lastBefore := lastEvent
+		lastEvent = lineNo
 
 		switch {
 		case e.PrevHash == "":
+			if len(report.HeadLines) > 0 {
+				restarts = append(restarts, Restart{Line: lineNo, After: lastBefore})
+			}
 			report.HeadLines = append(report.HeadLines, lineNo)
 		case !prevSeen || !prevKnown:
 			// A prev_hash with nothing checkable before it: either the
@@ -494,7 +547,7 @@ func VerifyChain(r io.Reader) (ChainReport, error) {
 		prevKnown = true
 	}
 	if err := sc.Err(); err != nil {
-		return report, fmt.Errorf("event: verify chain: %w", err)
+		return report, restarts, fmt.Errorf("event: verify chain: %w", err)
 	}
-	return report, nil
+	return report, restarts, nil
 }

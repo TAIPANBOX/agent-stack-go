@@ -113,6 +113,7 @@ go build ./...
 ./scripts/schemas-in-sync.sh   # needs TAIPANBOX/agent-passport checked out beside this repo
 ./scripts/readme-numbers.sh
 ./scripts/reproducible-build.sh
+./scripts/checkpoint-vectors-in-sync.sh   # invariant 30; needs agent-passport checked out beside this repo
 ./scripts/gates-have-teeth.sh   # invariant 14; needs a clean tree, run it after committing
 ```
 
@@ -319,8 +320,8 @@ had one, is worse than an absent invariant.
     harness version differ only in how many layers of quoting sit between the
     text and python. So every mutation asserts it applied: a case whose edit
     changed nothing is a failure, not a pass.
-    *(gate: `scripts/gates-have-teeth.sh`, 31 cases: sixteen real faults each
-    gate must catch, six non-faults they must not, and nine subjects taken away
+    *(gate: `scripts/gates-have-teeth.sh`, 35 cases: seventeen real faults each
+    gate must catch, seven non-faults they must not, and eleven subjects taken away
     entirely, where the gate must say it measured nothing rather than report
     OK. It said 12 until `features-are-bound.sh` arrived on 2026-08-26 with four
     cases of its own, it said 16 until the version-badge half of
@@ -901,3 +902,43 @@ refactors that keep every exported signature identical, and additions to
     Mutants planted 2026-10-14 and caught by name: no lock taken, lock refusal
     ignored, unlock before the append, no release on panic, unlock failure
     ignored.)*
+
+29. **A writer creates a stream or a checkpoint file mode 0640, and only in a
+    directory this process owns.** The bus is shared by planes that run under
+    different uids, so the mode is what keeps a stream readable by its group and
+    unwritable by everybody else, and a file created in a directory somebody else
+    controls is one its owner cannot write (F-021). A file that already exists is
+    opened as it is. No writer re-modes it or creates it again, because the create
+    is exclusive (`openAppend` in `event/create.go`). The uid check reads the
+    directory's owner through `syscall.Stat_t`, and on a platform where that cannot
+    be read no file is created: a writer that cannot place a file refuses to.
+    *(test: `TestNewWriterCreatesTheStreamMode0640`,
+    `TestNewChainedWriterCreatesTheStreamMode0640`,
+    `TestAWriterCreatesNoFileInADirectoryItDoesNotOwn`,
+    `TestACheckpointIsNotCreatedInADirectoryItDoesNotOwn`,
+    `TestTheSidecarIsCreatedMode0640`,
+    `TestAWriterStillAppendsToAnExistingStreamInAForeignDirectory`; the
+    ownership seam is `dirOwner`, which the tests replace so that a directory is
+    somebody else's. A test cannot create a foreign-owned directory without root.
+    Mutants to plant: the mode back to 0644, and the ownership check removed.)*
+
+30. **A checkpoint record is the bytes SPEC 6.5.1 defines, and the vendored vectors
+    are the canonical file byte for byte.** The encoder writes each record as its
+    RFC 8785 serialization, and signs the serialization of the record without
+    `sig`. The verifier refuses a record that is not its own canonical bytes; a
+    `head` that is not the SPEC 6.5 chain hash of the line `count` names; a
+    `prefix` that is not the SHA-256 of the stream through that count; a `prev`
+    that does not chain from the record before it; and a stream shorter than
+    `count`, which it reports as a truncation. A record written unsigned is never
+    reported valid. *(not enforced beyond the tests and the gate: a writer outside
+    this module, in Rust or Python, which the same vectors are meant to hold.)*
+    *(gate: `scripts/checkpoint-vectors-in-sync.sh`, which compares
+    `event/testdata/checkpoint-vectors.json` with `examples/checkpoint-vectors.json`
+    on the default branch of TAIPANBOX/agent-passport, byte for byte, and refuses
+    when the sibling is absent, the canonical file is not on that branch, or the
+    copy is not tracked; test: `TestTheEncoderReproducesEveryVendoredRecordByteForByte`,
+    `TestTheVendoredNegativeVariantsAreRefusedExactlyAsNamed`,
+    `TestTheVendoredRecordsVerifyOnTheirStream`, and the `TestVerifyCheckpoints*`
+    refusals; four cases in `gates-have-teeth.sh`: drift, a missing sibling, an
+    untracked copy, and a touch that changes no byte, which must pass.)*
+

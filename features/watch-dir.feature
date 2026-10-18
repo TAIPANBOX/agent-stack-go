@@ -175,3 +175,45 @@ Feature: A chain verifier that runs on the box and tells somebody
     Given the verifier started with an interval on a bus with nothing to verify
     When a pass cannot do its job
     Then it exits 2 at once, so a supervisor restarting it shows the failure
+
+  # @test:TestWatchDirReportsAChainRestartAsChainRestarted
+  Scenario: A restart nothing explains is a high chain_restarted
+    Given a stream whose chain begins again at line three, with no checkpoint
+    When the verifier runs
+    Then it exits 0 and writes one high chain_restarted naming line three
+
+  # @test:TestWatchDirAChainRestartExplainedByAResumeCheckpointIsMedium
+  Scenario: A restart a resume checkpoint explains is a medium chain_restarted
+    Given a stream whose tail was a fragment, a resume checkpoint naming the line before it, and a restart after
+    When the verifier runs with the checkpoints and their keys
+    Then it exits 0 and writes one medium chain_restarted naming the restart line
+
+  # @test:TestWatchDirRefusesAForgedPrefixCheckpointAndExitsOne
+  Scenario: A rewritten earlier line is refused by its checkpoint and exits 1 once
+    Given a checkpointed stream in which one earlier line was changed by a space
+    When the verifier runs with the checkpoints and their keys
+    Then it exits 1 saying the prefix does not match, and the next run does not repeat it
+
+  # @test:TestWatchDirCheckpointsWithoutKeysIsAUsageError
+  Scenario: Checkpoints without keys are a usage error, never a pass
+    Given a checkpoints directory and no keys
+    When the verifier runs
+    Then it exits 2 and names -checkpoint-keys
+
+  # @test:TestWatchDirATruncatedStreamIsRefusedAsATruncation
+  Scenario: A stream truncated below a checkpoint is refused and exits 1
+    Given a checkpointed stream that has lost its last lines
+    When the verifier runs with the checkpoints and their keys
+    Then it exits 1 saying the stream is shorter than the record's N bytes
+
+  # @test:TestWatchDirAnUnsignedCheckpointIsNotAFailure
+  Scenario: An unsigned checkpoint after key expiry is reported, not failed
+    Given a stream whose only checkpoint was written unsigned after its key expired
+    When the verifier runs with the checkpoints and their keys
+    Then it exits 0
+
+  # @test:TestWatchDirRestartsOfAnUnchainedStreamAreNotReported
+  Scenario: An unchained stream is one chain_unchained, not a restart at every line
+    Given a stream written without any prev_hash
+    When the verifier runs
+    Then it writes no chain_restarted

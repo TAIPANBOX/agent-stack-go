@@ -152,7 +152,7 @@ type Writer struct {
 // exist. The file handle is kept open for the Writer's lifetime; callers
 // must call Close when done with it.
 func NewWriter(path string) (*Writer, error) {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	f, err := openAppend(path, os.O_WRONLY)
 	if err != nil {
 		return nil, fmt.Errorf("event: open %s: %w", path, err)
 	}
