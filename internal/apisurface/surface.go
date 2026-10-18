@@ -33,7 +33,7 @@ import (
 
 // Packages whose surface is promised. cmd/ and internal/ are not a surface
 // anybody imports.
-var Packages = []string{"chain", "delegation", "event", "passport"}
+var Packages = []string{"chain", "delegation", "event", "keyclient", "passport"}
 
 // Surface returns the promised packages' exported declarations under root, one
 // per line, sorted. It refuses a package that yields no declaration at all,

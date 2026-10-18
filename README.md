@@ -7,7 +7,7 @@
 [![CI](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml/badge.svg)](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go)
 ![Go](https://img.shields.io/badge/go-1.27-00ADD8.svg)
-![tests](https://img.shields.io/badge/tests-329-brightgreen.svg)
+![tests](https://img.shields.io/badge/tests-358-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![Status](https://img.shields.io/badge/status-v1.3.0-success.svg)
 
@@ -617,6 +617,41 @@ there:
 - Only the first break per file is announced; a later one is not until the
   first is gone (the count rides in the alert).
 - Cutting a stream short from the end changes no hash in what remains.
+
+## The custody client: `keyclient`
+
+`keyclient` is the consumer side of Keyryx, the estate's key custody service. It
+is a separate package that imports only the standard library and `delegation`,
+and nothing in `delegation` imports it, so a token is still checked with the keys
+the process already holds. It does three things, none of them on a request path:
+
+- **Delegated keys.** `Client.Delegated` declares an ES256 or ES384 key with a
+  life of at least ten minutes. `RenewIfDue` generates the key in memory, shows
+  custody that it holds it, and asks for the next statement at half the life.
+  `Sign` signs locally with the key whose statement is valid at the clock's time,
+  and returns `ErrNoValidKey` once no statement is valid, so an expired key is
+  never used.
+- **Held keys.** `Client.Sign` asks custody to sign with a key it holds, naming
+  the purpose the signature serves in custody's use log.
+- **Key sets.** `Client.JWKS` polls a name's published keys into a cache. `Set`
+  feeds `delegation.Options.Keys`, and the cache keeps verifying when custody is
+  unreachable. A set with one malformed key is refused whole, and a key id the
+  cache never held is refused, whether custody is up or down.
+
+A consumer proves which it is by one of three credentials, named in its
+configuration and never guessed between: a unix socket of its own (no secret is
+sent, custody names the consumer by the socket), a key file, or a Kubernetes
+projected service-account token. The file is read on every request, so a rotated
+token is used at once. A redirect is not followed, so the credential never reaches
+a host that was not named.
+
+NOT PROVEN by this package: it does not check the delegation root's signatures on
+a statement. Trust in a statement and in a key set comes from the channel to
+custody, so the socket's permissions, or the cluster network with its policies,
+are the control. A cached key is valid until the cache is refreshed; a revoked
+key is dropped at the next successful poll, not at the moment of revocation.
+Over plain HTTP inside a cluster the bearer credential is readable by anything
+on that network.
 
 ## Design notes
 
