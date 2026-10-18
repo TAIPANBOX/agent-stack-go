@@ -10,7 +10,7 @@ implementations that import it, on real files they produced".
 
 ## Its own test suite
 
-358 tests across `passport`, `event`, `chain`, `delegation`, `keyclient` and `cmd/agent-conform`, and the two internal packages that gate the surface and the manifest, green on
+389 tests across `passport`, `event`, `chain`, `delegation`, `keyclient` and `cmd/agent-conform`, and the two internal packages that gate the surface and the manifest, green on
 `go test ./... -count=1`. CI additionally gates on `gofmt`, `go vet`,
 `staticcheck`, `go test -race`, `go build`, `govulncheck`, and on the two
 claims this file used to make in prose: that the vendored schemas still match
@@ -94,6 +94,17 @@ is the image, not the unit tests; the unit tests (`cmd/agent-conform/watchdir_te
 hold the same behaviour on every push, and the `release.yml` image jobs have
 not yet run on a tag.
 
+## An agent's own token, against the Rust verifier
+
+`delegation.VerifyAccess` is written to answer every agent token as tokenfuse's
+`verify_agent_token` does. What holds that is one table both can run,
+`delegation/testdata/agent-token-vectors.json`: 59 cases and 6 replay
+sequences, run here by `TestEveryAgentTokenVectorIsAnsweredAsItStates` and
+`TestEveryReplayVectorIsAnsweredAsItStates`. The Rust half has not run it yet;
+until a tokenfuse suite vendors the file, "the same rules" is a reading of
+tokenfuse's source at `ddf8dc5`, not a measurement. Four cases already record,
+from that reading, where tokenfuse answers differently (`known_divergence`).
+
 ## What is NOT validated
 
 Stated plainly, because the omissions matter more than the passes:
@@ -106,6 +117,12 @@ Stated plainly, because the omissions matter more than the passes:
 - **The chain proves ordering and integrity, not honesty.** It shows that a
   journal has not been altered after the fact. It cannot show that what was
   written was true when it was written.
+- **The agent-token verifier has no caller and has not met a live token.**
+  No door in the estate calls `VerifyAccess` yet, vouchryx's grant that mints
+  these tokens is being written beside it, and the table's tokens are minted by
+  this repository's own test-only keys in vouchryx's shape. The replay cache is
+  per process and in memory: two doors behind a load balancer each keep their
+  own, and a restart forgets a generation.
 - **`watch-dir` has not watched a live bus.** It was run on a fixture copy of
   one, in the image, and never on a box where a stack's writers were appending
   while it read. The compose and CronJob snippets in the README were not

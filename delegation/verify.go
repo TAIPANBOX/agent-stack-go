@@ -101,6 +101,12 @@ type Options struct {
 // revocation. A revocation lookup on a forged token would be work an attacker
 // chose.
 func Verify(token string, o Options) (Verified, error) {
+	// An agent's own token acts for nobody and is never a delegation chain,
+	// even though its claims would read as a chain of one: `typ` decides,
+	// both ways (see [AgentTokenTyp]).
+	if IsAgentToken(token) {
+		return Verified{}, ErrMalformed
+	}
 	claims, err := VerifyToken(token, o.Keys)
 	if err != nil {
 		return Verified{}, err

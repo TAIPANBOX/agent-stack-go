@@ -4,6 +4,8 @@ chain: func Validate(chain []string) error
 chain: var ErrCycle = errors.New("chain: cycle detected")
 chain: var ErrInvalidEntry = errors.New("chain: invalid entry")
 chain: var ErrTooDeep = errors.New("chain: exceeds max depth")
+delegation: const AgentTokenLeeway = 30 * time.Second
+delegation: const AgentTokenTyp = "at+jwt"
 delegation: const BasisAbsent
 delegation: const BasisListed Basis = iota
 delegation: const BasisNever
@@ -17,6 +19,7 @@ delegation: const MaxSnapshotBytes = 4 << 20
 delegation: const Window = 60 * time.Second
 delegation: func (b Basis) IsFallback() bool
 delegation: func (b Basis) String() string
+delegation: func (c *ReplayCache) CheckAndRecord(jti string, now time.Time) error
 delegation: func (f FailMode) String() string
 delegation: func (r *Revocations) Age(now time.Time) (time.Duration, bool)
 delegation: func (r *Revocations) AsOf() (int64, bool)
@@ -28,11 +31,14 @@ delegation: func (r *Revocations) RejectedBackwards() uint64
 delegation: func (r *Revocations) SetMaxAge(d time.Duration)
 delegation: func (s Set) Find(kid string) (JWK, bool)
 delegation: func (v *Verifier) Check(proof, method, url string, now time.Time) (string, error)
+delegation: func AccessTokenHash(token string) string
 delegation: func BuildAct(chain []string) (*Act, error)
 delegation: func Chain(sub string, act *Act) ([]string, error)
 delegation: func Extend(chain []string, actor string) ([]string, error)
 delegation: func Fetch(ctx context.Context, c *http.Client, url string) (Snapshot, error)
 delegation: func FromPublic(pub *ecdsa.PublicKey, kid string) JWK
+delegation: func IsAgentToken(token string) bool
+delegation: func NewReplayCache(cap int) *ReplayCache
 delegation: func NewRevocations(maxAge time.Duration, failMode FailMode) *Revocations
 delegation: func NewVerifier() *Verifier
 delegation: func ParseSnapshot(raw []byte) (Snapshot, error)
@@ -40,19 +46,24 @@ delegation: func ReadAct(act *Act) ([]string, error)
 delegation: func SignES256(key *ecdsa.PrivateKey, kid string, claims map[string]any) (string, error)
 delegation: func Thumbprint(j JWK) (string, error)
 delegation: func Verify(token string, o Options) (Verified, error)
+delegation: func VerifyAccess(token string, o AccessOptions) (VerifiedAgent, error)
+delegation: func VerifyRelayedAccess(token string, o AccessOptions) (VerifiedAgent, error)
 delegation: func VerifyToken(token string, set Set) (map[string]any, error)
 delegation: func VerifyWith(token string, key JWK) (map[string]any, error)
+delegation: type AccessOptions struct {   Keys	Set  Issuer	string    Audience	string   Now	time.Time    Proof	string Method, URL	string    Proofs	*ReplayCache     Revoked	func(jti, subject string, issuedAt int64) bool }
 delegation: type Act struct { Sub	string		`json:"sub"` Act	*Act		`json:"act,omitempty"` }
 delegation: type Answer struct { Revoked	bool Basis	Basis   Age	time.Duration }
 delegation: type Basis int
 delegation: type FailMode int
 delegation: type JWK struct { Kty	string		`json:"kty"` Crv	string		`json:"crv,omitempty"` X	string		`json:"x,omitempty"` Y	string		`json:"y,omitempty"` N	string		`json:"n,omitempty"` E	string		`json:"e,omitempty"` Kid	string		`json:"kid,omitempty"` Use	string		`json:"use,omitempty"` Alg	string		`json:"alg,omitempty"` }
 delegation: type Options struct {  Keys	Set   Issuer	string    Audience	string  Now	time.Time           Proof	string Method, URL	string    Proofs	*Verifier       Revoked	func(jti, subject string, issuedAt int64) bool }
+delegation: type ReplayCache struct { cap	int  mu	sync.Mutex begun	bool started	int64 current	map[string]struct{} previous	map[string]struct{} }
 delegation: type Revocation struct {  JTI	string		`json:"jti,omitempty"`     Subject	string		`json:"subject,omitempty"`  IssuedBefore	int64		`json:"issued_before,omitempty"`        Expires	int64		`json:"expires,omitempty"` }
 delegation: type Revocations struct { maxAge	time.Duration failMode	FailMode  mu	sync.RWMutex held	*Snapshot     fetchedAt	time.Time rejectedBackwards	uint64 }
 delegation: type Set struct { Keys []JWK `json:"keys"` }
 delegation: type Snapshot struct { Revocations	[]Revocation		`json:"revocations"` AsOf	int64		`json:"as_of"` }
 delegation: type Verified struct {  Subject	string          Actors	[]string   Chain	[]string  JKT	string  JTI	string IssuedAt	int64 ExpiresAt	int64  Scope	string }
+delegation: type VerifiedAgent struct {  Subject	string  Unit	string  Org	string  JTI	string  JKT	string   ProofJTI	string IssuedAt	int64 ExpiresAt	int64 }
 delegation: type Verifier struct { mu	sync.Mutex seen	map[string]time.Time }
 delegation: var ErrAlgNotAllowed = errors.New("delegation: that algorithm is not permitted for this key type")
 delegation: var ErrAudience = errors.New("delegation: the token was not minted for this audience")
@@ -70,8 +81,11 @@ delegation: var ErrNoKid = errors.New("delegation: the token carries no kid, so 
 delegation: var ErrNoProof = errors.New("delegation: a sender-constrained token was presented with no proof")
 delegation: var ErrNoSubject = errors.New("delegation: the subject token names no subject")
 delegation: var ErrNotBound = errors.New("delegation: the token carries no cnf.jkt, so it is a bearer token")
+delegation: var ErrNotConfigured = errors.New("delegation: the agent-token verifier was given no replay cache or no revocation hook, so it checks nothing")
+delegation: var ErrNotYetValid = errors.New("delegation: the token was issued further ahead of this clock than the leeway allows")
 delegation: var ErrPrivate = errors.New("delegation: the proof's jwk carries a private member")
 delegation: var ErrReplay = errors.New("delegation: this proof has been presented before")
+delegation: var ErrReplayCacheFull = errors.New("delegation: the proof replay cache is full, so single use can no longer be promised")
 delegation: var ErrRevoked = errors.New("delegation: this delegation has been revoked")
 delegation: var ErrSelf = errors.New("delegation: an actor may not delegate to itself")
 delegation: var ErrSignature = errors.New("delegation: the proof is not signed by the key it carries")

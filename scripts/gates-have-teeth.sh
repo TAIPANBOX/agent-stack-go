@@ -457,6 +457,43 @@ run_case "checkpoint-vectors-in-sync: the vendored vectors touched but unchanged
 	"$(py 'import os
 os.utime("event/testdata/checkpoint-vectors.json", None)')"
 
+# invariant 36: a private key committed here is a test-only key, named so, kept
+# under testdata/ inside test_only_keys, and read by tests alone. Each fault is
+# one of those three slipping; the non-fault is a PUBLIC key anywhere, which is
+# not key material at all.
+run_case "test-keys: a private key not named TEST_ONLY" fail \
+	'./scripts/test-keys-stay-test-only.sh' \
+	"$(py 'edit("delegation/testdata/agent-token-vectors.json", "\"TEST_ONLY_thief\"", "\"thief_key\"")')" \
+	"is not named TEST_ONLY_*"
+
+run_case "test-keys: a private key committed outside testdata" fail \
+	'./scripts/test-keys-stay-test-only.sh' \
+	"$(py 'import json, subprocess
+doc = json.load(open("delegation/testdata/agent-token-vectors.json"))
+open("docs/key.json", "w").write(json.dumps({"test_only_keys": {"TEST_ONLY_x": doc["test_only_keys"]["TEST_ONLY_thief"]}}))
+subprocess.run(["git", "add", "docs/key.json"], check=True)')" \
+	"outside a testdata/ directory"
+
+run_case "test-keys: product code names the file of test-only keys" fail \
+	'./scripts/test-keys-stay-test-only.sh' \
+	"$(py 'open("delegation/access.go", "a").write("\nvar _ = \"testdata/agent-token-vectors.json\"\n")')" \
+	"outside a test"
+
+run_case "test-keys: a public key committed outside testdata" pass \
+	'./scripts/test-keys-stay-test-only.sh' \
+	"$(py 'import json, subprocess
+doc = json.load(open("delegation/testdata/agent-token-vectors.json"))
+k = dict(doc["test_only_keys"]["TEST_ONLY_thief"])
+del k["d"]
+open("docs/public-key.json", "w").write(json.dumps({"keys": [k]}))
+subprocess.run(["git", "add", "docs/public-key.json"], check=True)')"
+
+run_case "test-keys: no file of test-only keys left to check" fail \
+	'./scripts/test-keys-stay-test-only.sh' \
+	"$(py 'import subprocess
+subprocess.run(["git", "rm", "-q", "delegation/testdata/agent-token-vectors.json"], check=True)')" \
+	"measured nothing"
+
 echo
 if [ -n "$(git status --porcelain)" ]; then
 	printf 'FAIL: this script left the tree dirty, so it cannot be trusted about anything above\n'

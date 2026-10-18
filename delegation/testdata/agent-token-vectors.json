@@ -1,0 +1,871 @@
+{
+  "$source": "agent-stack-go/delegation/testdata/agent-token-vectors.json",
+  "$why_source": "The canonical copy lives at the path above. Every other language VENDORS this file byte for byte and is found by this field rather than by a list somebody maintains (estate-gates C14).",
+  "comment": "Cross-language vectors for an agent's own access token (RFC 9068, typ at+jwt, DPoP-bound by RFC 9449), as vouchryx's client_credentials grant mints it. Every verifier (Go: this repository's delegation.VerifyAccess, VerifyRelayedAccess and Verify; Rust: tokenfuse's crates/delegation verify_agent_token, verify_relayed_agent_token and verify_delegation) MUST answer each case as stated. A case is fixed bytes: `jws` is the token, `dpop` the proof (absent means no proof), `now` the verifier's clock in Unix seconds. `verifier` is `agent` (the token and its proof, with a fresh replay cache), `relayed` (the token alone, no proof) or `delegation` (the delegation-chain verifier, which must refuse typ at+jwt). `method`, `url` and `audience` override `config` when present, and an `audience` of \"\" is a door with none configured. `revoke` is the revocation hook: it answers true for a call naming its `jti` or its `subject`, and false for anything else or when absent. `expect` is `accept` or the refusal, named in tokenfuse's Refusal vocabulary snake_cased; `verified` is what an accepted agent token yields. A `known_divergence` records, from source reading, a verifier that does not yet answer as stated. `replay` holds sequences for the proof replay cache: one cache of `cap` per sequence, each step a jti recorded at `now`. The keys under `test_only_keys` exist for this table alone and sign nothing else.",
+  "outcomes": {
+    "accept": "Verified.",
+    "audience": "aud does not name the configured audience, or none is configured.",
+    "bad_signature": "No key in the set verifies it: an unknown kid, another key's signature, or an algorithm the key type does not permit.",
+    "expired": "now \u003e= exp + leeway_secs.",
+    "issuer": "iss is not exactly the configured issuer.",
+    "malformed": "Not this kind of token: wrong or absent typ, no kid, or claims an agent token never carries or always carries.",
+    "no_proof": "A bound token presented with no proof.",
+    "not_bound": "No cnf.jkt: a bearer token.",
+    "not_yet_valid": "iat \u003e now + leeway_secs.",
+    "revoked": "The revocation hook named the token's jti or its agent.",
+    "wrong_key": "The proof fails, is by another key, or does not name this token in ath."
+  },
+  "replay_outcomes": {
+    "full": "The current generation is at its cap; nothing is forgotten to make room.",
+    "ok": "Recorded as used.",
+    "seen": "Used before inside the window."
+  },
+  "not_in_this_table": [
+    "Shapes both verifiers refuse under different internal names, so a case would test a library's error mapping rather than a rule:",
+    "a header with alg none or no alg (Rust: malformed, its header parser knows no such algorithm; Go: bad_signature);",
+    "a token with no iss or no exp, or a claim of the wrong JSON type (Rust: bad_signature, from deserialization; Go: issuer, expired or the rule the claim feeds);",
+    "a JSON member repeated (Rust refuses it in deserialization; Go keeps the last) and dates written as fractions.",
+    "All of these are signed bytes only the issuer can produce."
+  ],
+  "constants": {
+    "typ": "at+jwt",
+    "leeway_secs": 30,
+    "proof_window_secs": 60,
+    "max_proof_jti_bytes": 256,
+    "replay_generation_secs": 120
+  },
+  "test_only_keys": {
+    "TEST_ONLY_holder": {
+      "kty": "EC",
+      "crv": "P-256",
+      "x": "1TgD9mHtbQofhQeOXTpGN2CREOh4uY9yMgXOYe7TiZU",
+      "y": "57jWh8MYOp02MJJT9EyLY1jGD-60qCoYsLClvC7Hi5Y",
+      "d": "XRYU07d67p5wsPb9mBtWHwGxbjgwUv_KeIYNMTiQKxI"
+    },
+    "TEST_ONLY_issuer_v1": {
+      "kid": "v-1",
+      "kty": "EC",
+      "crv": "P-256",
+      "x": "gMC-krcdA4Sf3PAKbQmV7932Yz-ld_OaQOFkiJjoMD8",
+      "y": "iLBNXvD8azso5GnNU_MKdpOyxYxLkJ0yzgkCME9Ijzk",
+      "d": "AafCA3fmWi17mcNJceNQq6co8Et-8tF6tqzTz1tONCM"
+    },
+    "TEST_ONLY_issuer_v2": {
+      "kid": "v-2",
+      "kty": "EC",
+      "crv": "P-256",
+      "x": "wUWcuRk-nomNkMBd3GAPtQyLLpwIppaRga1Ydaxevls",
+      "y": "YtwdBh4Ae2Im291EgS98KlXY7Mo7YGQuC-Uv-YYFLXs",
+      "d": "Gj71g8Id-Wk5Iu0m_-nxo3cQ20CkhIExsF66tz9wqOE"
+    },
+    "TEST_ONLY_stranger": {
+      "kty": "EC",
+      "crv": "P-256",
+      "x": "RcqYMnB0_u3j5jwx2VDAW3At-z3k4A58XaMrienrNm8",
+      "y": "FQNZqNrtMpGUiam4xAinYm9DdigVvTHOeBWFE0ETWwg",
+      "d": "nMivJgFdCQNeUWXWUyu3VbkHBZLWQYrYZWXhnMlWusE"
+    },
+    "TEST_ONLY_thief": {
+      "kty": "EC",
+      "crv": "P-256",
+      "x": "fLEvrdo1xgvguRTLNTiJJbl_dVRbJsF4Cd0_bDySA5s",
+      "y": "oj09JRgdy3WlVMib3y4eKKId43KHBynbtR7gaQmP0kk",
+      "d": "UQrY8yqDcRhr8SDfF7i4ixMkGgkQQ_EKJ2ezEiYlcN0"
+    }
+  },
+  "config": {
+    "issuer": "https://vouchryx.acme.example",
+    "audience": "https://tokenfuse.acme.example",
+    "method": "POST",
+    "url": "https://tokenfuse.acme.example/v1/messages",
+    "jwks": {
+      "keys": [
+        {
+          "kid": "v-1",
+          "kty": "EC",
+          "crv": "P-256",
+          "x": "gMC-krcdA4Sf3PAKbQmV7932Yz-ld_OaQOFkiJjoMD8",
+          "y": "iLBNXvD8azso5GnNU_MKdpOyxYxLkJ0yzgkCME9Ijzk"
+        },
+        {
+          "kid": "v-2",
+          "kty": "EC",
+          "crv": "P-256",
+          "x": "wUWcuRk-nomNkMBd3GAPtQyLLpwIppaRga1Ydaxevls",
+          "y": "YtwdBh4Ae2Im291EgS98KlXY7Mo7YGQuC-Uv-YYFLXs"
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "name": "a good agent token verifies with its holder's proof",
+      "why": "The shape vouchryx mints. If this refuses, every agent is locked out.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGEtMSJ9.ncLaRYw-HcGhq-MXHyB0njeJ2sEf_t4iwMOci1IWRWkuLBKCxrtifwvZeQn0CmFzxC_DlrCNdcvbNEARHP3AbQ",
+      "expect": "accept",
+      "verified": {
+        "subject": "agent://acme/triage",
+        "unit": "ops",
+        "org": "default",
+        "jti": "agent-tok-1",
+        "jkt": "-xSVhqOu5JMoNZpfXV7-SnczXtxflpgSfrwceZeuhUQ",
+        "proof_jti": "pa-1",
+        "issued_at": 1800000000,
+        "expires_at": 1800000300
+      }
+    },
+    {
+      "name": "the second key of a rotating set verifies by its own kid",
+      "why": "A key set holds two keys during a rotation; the kid names the one that signed.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMiIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.xvCEviuZQv48Y59Ck4HnMMI0rI6tibYb9njcSHEN2bzR74flWXlBAivPZq-391bz-QSX0jM50ZijvU5Cmktkfw",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJQbXhwMU5ydG1wa25pRUdmU2dWWnNMMFJNNFdROXBqYXZhRHRvZTNHTFZVIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGEtMiJ9.viul3d4y13stbltAWOsn01nBLp28aTMWHdTN1_ANuF1cjvpjy3Ab1M2shKPxwsHU4Nw_m53Vc5XCfn34pDc2gQ",
+      "expect": "accept"
+    },
+    {
+      "name": "an audience array that names this resource is accepted",
+      "why": "RFC 9068 allows aud to be an array; one naming this resource is for it.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOlsiaHR0cHM6Ly9vdGhlci5hY21lLmV4YW1wbGUiLCJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiXSwiYXV0aF9zcmMiOiJlbnJvbG1lbnQta2V5IiwiY2xpZW50X2lkIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsImNuZiI6eyJqa3QiOiIteFNWaHFPdTVKTW9OWnBmWFY3LVNuY3pYdHhmbHBnU2Zyd2NlWmV1aFVRIn0sImV4cCI6MTgwMDAwMDMwMCwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJodHRwczovL3ZvdWNocnl4LmFjbWUuZXhhbXBsZSIsImp0aSI6ImFnZW50LXRvay0xIiwib3JnIjoiZGVmYXVsdCIsInN1YiI6ImFnZW50Oi8vYWNtZS90cmlhZ2UiLCJ1bml0Ijoib3BzIn0._ByStzusppz6Xz3JS08kjfqjBkjwtQvdQZ9cFrMFPfmWcuW35i9BuLfeqoMRuT1luN2mIuhyr29Y4es8EYGBKA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiItdVVHLVBNZ1Rwb3h1WWVUOEhxdGlwUEJFZE9LYTZJa1cxMG9INC1BTnkwIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGEtMyJ9.t0YKpZdkLYqb4UcmpTT1x4IIWIyxuheU9CQKDDn-RVs6mbmlBK_ggkZpif-zxBf0tWcYrHPg3FroAzZ3lr4rMw",
+      "expect": "accept"
+    },
+    {
+      "name": "twenty-nine seconds past exp is inside the leeway",
+      "why": "Two hosts' clocks drift; a refusal in the second a token turns over is an outage.",
+      "verifier": "agent",
+      "now": 1800000329,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDMyOSwianRpIjoicGEtNCJ9.RP-3XDR2_IFLrmJbnEVDEOIsiKxE_wvxcgORTQ_QtyX2Nr91yrBQfpbjTxsosZDa5K84jQN970nMCb_Md219mg",
+      "expect": "accept"
+    },
+    {
+      "name": "an iat exactly the leeway ahead is accepted",
+      "why": "The leeway applies to a fast issuer clock as well as a slow door.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzMwLCJpYXQiOjE4MDAwMDAwMzAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.d_5XHDTpIm7tTP9_CplVCpqXY957UIZ1CSyzo4B0R6pMwBLob5HeCT1Mu2ifedd_srmhgLLaLw3FaxDGFlr9bQ",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJ2T2Z2Z0lnWkh1eGdxZHJZeUJVSUFXd0Z2bzhPdUFKVmV5SFN4eXFmZFowIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGEtNSJ9.ofZ1hpLO5RTjWsJ7vf0Ywvw2D7wbYPpU3wQfJcomj_wsPJ79mR0qTXrp2RtALZD6Iemmsx17Nd4VSWfRhfX-EQ",
+      "expect": "accept"
+    },
+    {
+      "name": "a query string on the request is not a different request",
+      "why": "htu is the request URI without its query (RFC 9449 4.3).",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGEtNiJ9.Bx9UMKH9EsJj33VftbNzZOi1YBOrQEJPg3Z35JpR0LSRuTGNT1ak2E7B1AYo5JOClWrR4vQNg4i8DTtS8zTdtg",
+      "url": "https://tokenfuse.acme.example/v1/messages?trace=1",
+      "expect": "accept"
+    },
+    {
+      "name": "a revocation naming another agent does not refuse this one",
+      "why": "The negative control for the revocation cases: a hook that refused everything would pass them.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGEtNyJ9.x5OoHI_5uARVNpF9XlpAAsJg_FmAXiYf6mf47ug9mcIu8c54c8fnsUYdMyZisN6S6Z_EXVRJcC-PlNNa5VPl8A",
+      "revoke": {
+        "jti": "agent-tok-9",
+        "subject": "agent://acme/other"
+      },
+      "expect": "accept"
+    },
+    {
+      "name": "typ JWT is not an agent token",
+      "why": "typ decides, both ways: a delegation token or an ID-JAG is never an agent token.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.1grxFym-XtqZ4ClIN9lwulwBZ10jvQmLlMiKcrRijOai2eZs_UQqz3EhhfKDJmXuRcX8kVPyje8Iz-hPbqWpmg",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiI2UzB3bjRUeVhpUEpxRTFQSlBqbDRsYURsSlZRQnRtd2ktYmhmazduQzNZIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGItMSJ9.cpaQiBwDE17dNRQP51i5FAhfLilTzb5oZh1fNWm2o-CvLzU8c6L_661-pPiQUursu5oDaXKCy4-Ay7Lh5Vsu1A",
+      "expect": "malformed"
+    },
+    {
+      "name": "a token with no typ is not an agent token",
+      "why": "An absent typ is not at+jwt.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.vXN53y9zipiKD5ow1W7LXqqyrZ2W9iiOefOkCMc_gaIBP6RbD5yS9Kr8KY788QwiTON6j1VPm9GqvyyCuDflqg",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiIySVRxTUl4aDhid3NfUDR6Sjg5NUtkQ2VLeFRPdm1uUU1QOWFiaUNidzJnIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGItMiJ9.DLui2eSvaGLdTmgldHXp-3gzjYQ1m_HIQ59Z2Nkq0yHelz1u6J8Y-3kjRXEcK3yQXwWKjszYHQrcEkkEbE5JWA",
+      "expect": "malformed"
+    },
+    {
+      "name": "the long media type application/at+jwt is not accepted",
+      "why": "Both verifiers compare the short form exactly, which is what vouchryx mints. RFC 9068 2.1 also allows the long form; accepting it is a decision for both languages at once.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImFwcGxpY2F0aW9uL2F0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.36Mn6rtWuGkQR8iISPbVJzVu8ISXKKyvywSJ3hsMjCj29vI0pCTIgsPgPAcapm3KcLqcb7JhjHezB2rTXQPX_g",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJiTHZtYlFfZ0VpZUdOc2VVOE1LLUcxYUZETFhFTm9tdHNGbVFVNUIxWGhRIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGItMyJ9.gdUSvg_dfK18coB9c9YqxWTqqy8i2HH0NYj9sW5hCTvQtO16On82iUNMV3ohu2TDC8xEOs3wrHDpb6DvPJtI0w",
+      "expect": "malformed"
+    },
+    {
+      "name": "an agent token is not a delegation",
+      "why": "The delegation verifier refuses typ at+jwt, so an agent token is never read as a chain of one.",
+      "verifier": "delegation",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGItNCJ9.0-E5dw097--7vhc5DprBtqy4d_R42Tlx2fNu01lVEOdjVGB4eIQAbe07kgBo7odm5muB6nrtTu4ibe5eO1rUpg",
+      "expect": "malformed"
+    },
+    {
+      "name": "an at+jwt token carrying a chain is not a delegation",
+      "why": "The shape the typ rule exists for: a delegation's claims under the agent token's typ.",
+      "verifier": "delegation",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhY3QiOnsic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSJ9LCJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJjbmYiOnsiamt0IjoiLXhTVmhxT3U1Sk1vTlpwZlhWNy1TbmN6WHR4ZmxwZ1NmcndjZVpldWhVUSJ9LCJleHAiOjE4MDAwMDAzMDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly92b3VjaHJ5eC5hY21lLmV4YW1wbGUiLCJqdGkiOiJ0b2stMSIsInN1YiI6InVzZXI6Ly9hY21lL2FsaWNlIn0.mTIGZhGniW9jEydA2RSn1WaEAO2oje7rcu6bgKjQAmXjAmO35D_k-MqqwwzadxFayE-OW99Oq7E5GuvyiE_7Yg",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJlV0hlYUdBNnUydWlzaFNPZEdpaV92T2o1cWxHMmVQUXZmUWI1ZU1Dc2RRIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGItNSJ9.trRkg8iy3OOA_Eh01wpkN-8sVWgwoxGTexUfXVmw_LdrP5Iv_eNgYDbyebUeBju5xLpebLPIUzqD-cX8NyG3OQ",
+      "expect": "malformed"
+    },
+    {
+      "name": "a delegation typed JWT still verifies as a delegation",
+      "why": "The control for the two cases above: the typ rule refuses one typ, not every delegation.",
+      "verifier": "delegation",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6IkpXVCJ9.eyJhY3QiOnsic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSJ9LCJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJjbmYiOnsiamt0IjoiLXhTVmhxT3U1Sk1vTlpwZlhWNy1TbmN6WHR4ZmxwZ1NmcndjZVpldWhVUSJ9LCJleHAiOjE4MDAwMDAzMDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly92b3VjaHJ5eC5hY21lLmV4YW1wbGUiLCJqdGkiOiJ0b2stMSIsInN1YiI6InVzZXI6Ly9hY21lL2FsaWNlIn0.BssVGOpHSypoRaaaW2lEcfqNPWqA9zSpklg7ji6G82xIay3-oRYbx9LZAXhBBMpjd0UW0Nbxvej0GUWVAyx7kg",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJrZzUwMXVKejZFUDFOZGt6aDBfa3JEV3BHbURJWGgwTWFNTTZSU0ZpSUdnIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGItNiJ9.igKKyWiigJndEpD2XZG9lpwd18vCoGrsFWNUJ3TU4XAsISysnSaRXyLfpatmj5Nuz1Kb_oPpyL3sSNsXalMalg",
+      "expect": "accept"
+    },
+    {
+      "name": "a token with no kid is malformed",
+      "why": "No kid, no key: there is nothing to match, and trying every key would make one compromised key a skeleton key.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.VzUtTN2nVgJJhJOswm-NtDHOZjZv2N8i0zb8R7kJ_kSbLC4MMiCoU-uuu3Ui8Wbv3McdXtjoRus2IVKoUzqlTw",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJyQ2JDdElSbGFURmhMRTZoUkg2UGpubG1EU1NoTmppTkh5UGFPMzZUekVVIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGMtMSJ9.-oFrZ7jrw5w4JDRU_3yQKUFHUvEhhopqs2DY5HfDCnY77Azqej0ACWu4PDjLr837ulyW_oPg387sNuvsr7DTfQ",
+      "expect": "malformed"
+    },
+    {
+      "name": "a kid no key in the set has is refused",
+      "why": "The kid names one key; a kid naming none verifies nothing.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtOSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ._o_k96GIBh4vgjssXV070ARYwYTXRWFDJ2Jd9j7DL4JxFrIi5O4CclfzBYSHiNoB55IcwQQP5OfJRLonChNvZA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJCNk94Vl9aczhPak1HNm5IUmVHLUdrUzlBSWl4STZHTGxxQm5CeWVIelhjIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGMtMiJ9.zEnKdszasJI8doSFnG0jgqkZUFWx6VoV1aMTuSEzK1_ocKT_n_9RI9ivqG8ih8bZ5AV0C7Tslt7iqM5EEDFU1A",
+      "expect": "bad_signature"
+    },
+    {
+      "name": "a token signed by a key other than the one its kid names is refused",
+      "why": "The second key of the set signs, the token names the first.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.8ms5kiL_yyjMdZga4Hm_SLHe47BpCPnwPB6m6pJ8iw_XnSz3APfauPCM0j8nPBC41vWS7BG9Vmo6PPvR7ohKUg",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJKQWl6cElLWVlYSUZpNHNPQ0JhbXZUeGE3bGR5Zm5vMGU3SnllNmt3QXBBIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGMtMyJ9.wlD8Mztc19OUoO2H1tbVQMT38StFpaZUas8CGqItwyLYaQxGXt8VjRoDHdUtYYmdZBsStrjw1xbaWIyjJS_x_w",
+      "expect": "bad_signature"
+    },
+    {
+      "name": "a token signed by a key outside the set is refused",
+      "why": "A stranger's key under the issuer's kid.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.0d2PIEgxlgBQuFr1kXgnmLwYiCBw5oJculBFokVMscB6nR1Sq4FtRqG1_HZM86IeBQQSoMP0V6Jq46RFkuXdvw",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJvUFFnREN2Sm55SUJFMUtfa1BGR2FGN3BxWUd1SU10MDlLLXlVY3N2V2tnIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGMtNCJ9.vM_PyC4jBLdiJwPk2EROBfKxznKgZGmKFYJlV-bWJB-o7vW7Jn1pJ4emWV2DFbyV9vom1p-knqL5unDtVZIsQA",
+      "expect": "bad_signature"
+    },
+    {
+      "name": "HS256 with the issuer's public key as the secret is refused",
+      "why": "The classic algorithm confusion: the algorithm comes from the key type, never from the header.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJIUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.tJV8Z0TI390VvRaIqtCK3RZpkhlMGMqVwPdI463l_Ws",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiIzM1dpQmNHZGRwdXFFLWp6NkhYODBRLU1uUGJlazE5VXR0RTF4dkhKMzlnIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGMtNSJ9.RQ_4Wt2MaAvkVt20swHL_LHdn0bNLS8PUGrXdjvhUS85fn4M357rrAGn8VwXvU0ORCwsUXbE1w-IDGSPd0kUfA",
+      "expect": "bad_signature"
+    },
+    {
+      "name": "ES384 over a P-256 key is refused",
+      "why": "An algorithm name means one curve; a P-256 key does not verify under ES384.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzM4NCIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.DVRUSkHYT0C1ZoSa0Cdb21zloR-PLCLzyKbCFuuUTn-tKwED9fVtO_DgqSLrM3We4L88W8eVYDFHoPUg-7nxYQ",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJwelkxLWZDaHgtNGxKTXhVZjRFSmdneGYtZEFLZnQ3TWh6SjBnLVc3a0RZIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGMtNyJ9.3rAYUtamwwi0PZ4udQXw9XR_0_qs8mCRYsOsHwvic1-cS5cP5hmWHPZPh0ZInDgCmdRINx0KTOjIRQBMOsWN6Q",
+      "expect": "bad_signature"
+    },
+    {
+      "name": "a token from another issuer is refused",
+      "why": "iss is exact.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguZXZpbC5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.UYvE_RzcLfk1mT5zGP8PENYwhngwbd7nVDMbVAtWkxmQzLksjrTu-Acd9dMQCLPOZmyfX8V2i8sZfY2aFBKfkQ",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJNbXJVMTNQT0lnUm9vZXZ0dHFsVl91SWVjUGRvX2pGTERCQk5NTlFXT3RFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGQtMSJ9.VzAgdrPUSGZd1n4rdTsYablZC1d8MUjOr9ABRinDi9HzxO9uodBo8s1zLmuvmY8anVVVpKmnDYsGs7BlmUzcrw",
+      "expect": "issuer"
+    },
+    {
+      "name": "an issuer with a trailing slash is refused",
+      "why": "Exact means exact: no normalisation of iss.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlLyIsImp0aSI6ImFnZW50LXRvay0xIiwib3JnIjoiZGVmYXVsdCIsInN1YiI6ImFnZW50Oi8vYWNtZS90cmlhZ2UiLCJ1bml0Ijoib3BzIn0.BeaBzXp3_ztNbtUlFWFj5tXcuzsXARLPIxMe0XoTlpWmZnnTJsfr3Z-edsPVnCnNHuc_00LuBwBHdFpTovg_PQ",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJjb3AzVEtEQUFzd1hLUkxaenFtcG9TalFLSzV6Mk5pZlFOWThOWElrVDFvIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGQtMiJ9.asdma8PwZ6mYtuP3xMLLIcA4d2ki4VnUsjL2cFd7-5tIGi6lXdGOrR0uevR_UCLhT_L_PtZAiIiQyruaeuJkKg",
+      "expect": "issuer"
+    },
+    {
+      "name": "an issuer written as an array is refused",
+      "why": "iss is one string. RFC 7519 4.1.1 defines it as a single StringOrURI.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6WyJodHRwczovL3ZvdWNocnl4LmFjbWUuZXhhbXBsZSJdLCJqdGkiOiJhZ2VudC10b2stMSIsIm9yZyI6ImRlZmF1bHQiLCJzdWIiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwidW5pdCI6Im9wcyJ9.SFLQ3Cmwop4HNYeGsTnuZN38PFv-kUAtOqYxYp6V9hU_3IdBV4fiCCJZb5aKwQ8l9HzRLRUlZibAAOmOuCD2yg",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJRZS0wSHJ6Y1VzTERUOGQxdzhsUGR4YzVaVzVBNWtWcFF0Z0dnQkN3UnJFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGQtMyJ9.fdzzj0d3hl_8_Tpzr57fR5CYEdLfisr68w5BujGui6Tw6vlX_Ysd9GIKK3pvJByXQYN8rcYHVGQVSBU5osDiDQ",
+      "expect": "issuer",
+      "known_divergence": {
+        "tokenfuse_ddf8dc5": "accept",
+        "why": "jsonwebtoken 10.4.0 validation.rs:317-329 accepts an issuer array that intersects the configured issuer; tokenfuse passes its validation through decode_claims."
+      }
+    },
+    {
+      "name": "a token for another resource is refused",
+      "why": "aud is required and exact.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL290aGVyLmFjbWUuZXhhbXBsZSIsImF1dGhfc3JjIjoiZW5yb2xtZW50LWtleSIsImNsaWVudF9pZCI6ImFnZW50Oi8vYWNtZS90cmlhZ2UiLCJjbmYiOnsiamt0IjoiLXhTVmhxT3U1Sk1vTlpwZlhWNy1TbmN6WHR4ZmxwZ1NmcndjZVpldWhVUSJ9LCJleHAiOjE4MDAwMDAzMDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly92b3VjaHJ5eC5hY21lLmV4YW1wbGUiLCJqdGkiOiJhZ2VudC10b2stMSIsIm9yZyI6ImRlZmF1bHQiLCJzdWIiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwidW5pdCI6Im9wcyJ9.TYtoNZYr-VobBje8sJmFfRukTPWLQNUu8iBa5DELd-vnuPFfHptLlmPVuvYDBjthgIwfg4NY9Y3BeCyDmKdwjQ",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJEUHU4Rm9kbXA0cGwyM1dka2FDYUVkVVd5SzNMalllMmhKeW43cHhiSmdJIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGUtMSJ9.waJsAQDEFg8wrMmCn7qU_f0bnTGaYlh7-3TBP5YzVqAWOzcb8pAKb3kZNDjwu9yN680JHlPjcClmGSlyA4_QZA",
+      "expect": "audience"
+    },
+    {
+      "name": "a token for a prefix of this resource is refused",
+      "why": "A prefix match is how a service ends up trusting a neighbour.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbCIsImF1dGhfc3JjIjoiZW5yb2xtZW50LWtleSIsImNsaWVudF9pZCI6ImFnZW50Oi8vYWNtZS90cmlhZ2UiLCJjbmYiOnsiamt0IjoiLXhTVmhxT3U1Sk1vTlpwZlhWNy1TbmN6WHR4ZmxwZ1NmcndjZVpldWhVUSJ9LCJleHAiOjE4MDAwMDAzMDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly92b3VjaHJ5eC5hY21lLmV4YW1wbGUiLCJqdGkiOiJhZ2VudC10b2stMSIsIm9yZyI6ImRlZmF1bHQiLCJzdWIiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwidW5pdCI6Im9wcyJ9.mRG2bI3E252238VzylF1n2YJKf4hY82cLHL67MECnrxQVfy4yzqIHlE2HeckfMTC2s2s61Ghk2fcw85YGONnBg",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJMbHNqTm9OWnBxVDlpbi1YdGhCWUZMcFR6dVU0ZDFyVHFvYnJiWWdySE1ZIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGUtMiJ9.NGPT4xwU3nFYmSJmESx3VSacvTIozYxcxSkq-bXhpWdvRNLXzFipSLmiEtyUgt45ZXV2n1BVFrHf1j-NEDb9WQ",
+      "expect": "audience"
+    },
+    {
+      "name": "a token for this resource with more after it is refused",
+      "why": "The other direction of a prefix match.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUuZXZpbCIsImF1dGhfc3JjIjoiZW5yb2xtZW50LWtleSIsImNsaWVudF9pZCI6ImFnZW50Oi8vYWNtZS90cmlhZ2UiLCJjbmYiOnsiamt0IjoiLXhTVmhxT3U1Sk1vTlpwZlhWNy1TbmN6WHR4ZmxwZ1NmcndjZVpldWhVUSJ9LCJleHAiOjE4MDAwMDAzMDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly92b3VjaHJ5eC5hY21lLmV4YW1wbGUiLCJqdGkiOiJhZ2VudC10b2stMSIsIm9yZyI6ImRlZmF1bHQiLCJzdWIiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwidW5pdCI6Im9wcyJ9.tSz-eTLNLrXZRN1VFShcmS7aoT2PSpARI3exJZac1Se3foeGlyNJV_It6UFOV-jAa_YP6-iRK5sj2bMMHrp9xQ",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJxTDVFTUhwQW1tc0lmNFFMYURhZXFFemliNFhzSVZ0WU5jYmpWQWE1V2swIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGUtMyJ9.UQ9E-IqY5VzrUFwod6P7Aq6ziB75M7wGXXpUlg7z3FjHtaNZjx-5y5RKtSso6a6-ixW1in8GnjAKFSN1X3j-ag",
+      "expect": "audience"
+    },
+    {
+      "name": "an audience array that does not name this resource is refused",
+      "why": "An array is accepted only when it names this resource.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOlsiaHR0cHM6Ly9vdGhlci5hY21lLmV4YW1wbGUiXSwiYXV0aF9zcmMiOiJlbnJvbG1lbnQta2V5IiwiY2xpZW50X2lkIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsImNuZiI6eyJqa3QiOiIteFNWaHFPdTVKTW9OWnBmWFY3LVNuY3pYdHhmbHBnU2Zyd2NlWmV1aFVRIn0sImV4cCI6MTgwMDAwMDMwMCwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJodHRwczovL3ZvdWNocnl4LmFjbWUuZXhhbXBsZSIsImp0aSI6ImFnZW50LXRvay0xIiwib3JnIjoiZGVmYXVsdCIsInN1YiI6ImFnZW50Oi8vYWNtZS90cmlhZ2UiLCJ1bml0Ijoib3BzIn0.RhyRMrxdznC2t8aPNSZFL30RMu8rtcDLYtM0MykgoZrqBHKnGP-qa3ocfAKu4KmLCPd6OYtB9gwBJTOjJ9zDrA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJKSTMwQ3dIa3pZWnJBTWZQRWlLclZQRTR0MlViNldEaDJVVnotb09PUTZzIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGUtNCJ9.K-aOKiZ4AEIBdlHaZZDUqaOsbXk_NfZMPuKElmxGkNbpGG2ueOVh3SoesvTMx6Rajj6Mtt1gYWXIHPXGcwo1LQ",
+      "expect": "audience"
+    },
+    {
+      "name": "a token with no audience is refused",
+      "why": "Required means present: a token minted for no resource is not minted for this one.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.Zr1DsMm9_0EciRdCwi0-JBuA5yqu0pIdu8YQWq-oNP0LUDWoixCkJFY31JaLmEQGF7xMtrK3O42nEad9SHRK9g",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJIUl9xak14MDQxM3JyR2RodExfdzIzbE9SVjdFMGlxUEZjZjlaUXhmbFBvIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGUtNSJ9.-_f6EAlHb61z75qc2yQe0NNn7WbrngXRAVAI0ptBzAtitPDXpa_eE9BSL_zJvboK2NwQDK0x839iEyS6VDYigw",
+      "expect": "audience",
+      "known_divergence": {
+        "tokenfuse_ddf8dc5": "accept",
+        "why": "jsonwebtoken 10.4.0 validation.rs:334-357 checks aud only when the claim is present unless \"aud\" is a required spec claim, and decode_claims requires only exp and iss."
+      }
+    },
+    {
+      "name": "a door with no audience configured refuses a good token",
+      "why": "An empty configured audience refuses everything rather than accepting any resource.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGUtNiJ9.RpKD-re_W4HIq3RP2wJ89IXlZ5xQxSq8dUqEiA66wGR-YSn1m3QAUCEU57ce_z-dyULqRVUwLyfeFADA3lS4sQ",
+      "audience": "",
+      "expect": "audience"
+    },
+    {
+      "name": "a door with no audience configured refuses a token for the empty audience",
+      "why": "The one token an empty configured audience could be read to match is still refused.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiIiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.t0H6Q8cumWDHi24C8ikJwyx0pRbRKLA_IKGOQv864sbsCYA-dAOnB3ujyrTUiVLvPCh2vetuAUgi33T3Xv-IJQ",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiItVk1hcF9ET1ZfUDY2SnZVODNYZFFqRVQ3WUJTUzJrUURUdHFaQWRuR0hjIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGUtNyJ9.zPv4erSZcLsjpUxsidYjOjflbJyX9MYUTFP47SaEn1zBUjVnKkT5D2eQ_w4h_M79N40RHUTPRphTeDqGn2MAFQ",
+      "audience": "",
+      "expect": "audience"
+    },
+    {
+      "name": "thirty seconds past exp is expired",
+      "why": "The leeway's edge: now \u003e= exp + 30 refuses.",
+      "verifier": "agent",
+      "now": 1800000330,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDMzMCwianRpIjoicGYtMSJ9.0Jt8lJfGDKObq3ILVKAnCK4mhnp5dDqhO72ryYCIgAoNQsvwZ-95JLzC8UTuz93axFQO5t-BJby_gUZvCABfOg",
+      "expect": "expired"
+    },
+    {
+      "name": "an iat thirty-one seconds ahead is not yet valid",
+      "why": "Past the leeway a token from the future is refused.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzMxLCJpYXQiOjE4MDAwMDAwMzEsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.Gs8KNY3zqrSR2RIOwMheqNOzaXsz0q1KRl5H0-CM_6Ex8Q5LLMtrR5rXe3486pLx2UmDWmj3VgHZI2LPXAU9nA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJHSWFHTXA3MXRJa2VwbG4wXzNmXzlMWmkxd3ZPZWRBcjdGbzNNMGlZLV9ZIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGYtMiJ9.aSwV6KU23cHmAzDskSlFi2TkBzfcurpR349DC_o-gTuKLN9CHaKdIwgQ1yP4awzWpS_o1DB-F8TgsCtWwZpbNQ",
+      "expect": "not_yet_valid"
+    },
+    {
+      "name": "a sub that is a user is malformed",
+      "why": "An agent token names an agent.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJ1c2VyOi8vYWNtZS9hbGljZSIsImNuZiI6eyJqa3QiOiIteFNWaHFPdTVKTW9OWnBmWFY3LVNuY3pYdHhmbHBnU2Zyd2NlWmV1aFVRIn0sImV4cCI6MTgwMDAwMDMwMCwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJodHRwczovL3ZvdWNocnl4LmFjbWUuZXhhbXBsZSIsImp0aSI6ImFnZW50LXRvay0xIiwib3JnIjoiZGVmYXVsdCIsInN1YiI6InVzZXI6Ly9hY21lL2FsaWNlIiwidW5pdCI6Im9wcyJ9.nzzj2aQob9TxcqS-wL0bc_5G3terXvgABT2_r7QjlzjLzP9cc_XdhK2Lj0k1MbH96GQLx_y6C__TzTVTzAy1KQ",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJMWkJBYkVKTGNEZ0pUU0RZaDd6SEozY3Fwa0s5bnpQSjJjNHlOdXY0eFRJIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGctMSJ9.kAktsvN41yhxWRA41bmZhqz5OshgFE0syhOpudNdMegeLgj6FyFueESqvEhffzM7NBbtl_eGybqNsNDiFaai1Q",
+      "expect": "malformed"
+    },
+    {
+      "name": "a sub that names no agent after the scheme is malformed",
+      "why": "agent:// alone names nobody.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovLyIsImNuZiI6eyJqa3QiOiIteFNWaHFPdTVKTW9OWnBmWFY3LVNuY3pYdHhmbHBnU2Zyd2NlWmV1aFVRIn0sImV4cCI6MTgwMDAwMDMwMCwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJodHRwczovL3ZvdWNocnl4LmFjbWUuZXhhbXBsZSIsImp0aSI6ImFnZW50LXRvay0xIiwib3JnIjoiZGVmYXVsdCIsInN1YiI6ImFnZW50Oi8vIiwidW5pdCI6Im9wcyJ9.Uml4KMk4uNsUWoprthKe4zthaU_IokLGSPTi6FwUZCX7bm0teEnn7cxZn4axVmsGvwtAGTNIzgjaqk3iFlHnbw",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJzSXdYZjEycXZ3N3hmeVlqQzN1S3lCNkNGR0lQWjh4X0hvUTIwNmZQXzBvIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGctMiJ9.y3N__-VBKdiIg-U3Z2BFJF85_cmulgOlW5gyG-lzAsSJM5O_Qa1yTkb9XmtBpSK2o_eZgXd2cHvS6YGdvi_k7w",
+      "expect": "malformed"
+    },
+    {
+      "name": "a client_id that is another agent is malformed",
+      "why": "RFC 9068 2.2: the agent is the client, so the two are one string.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvb3RoZXIiLCJjbmYiOnsiamt0IjoiLXhTVmhxT3U1Sk1vTlpwZlhWNy1TbmN6WHR4ZmxwZ1NmcndjZVpldWhVUSJ9LCJleHAiOjE4MDAwMDAzMDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly92b3VjaHJ5eC5hY21lLmV4YW1wbGUiLCJqdGkiOiJhZ2VudC10b2stMSIsIm9yZyI6ImRlZmF1bHQiLCJzdWIiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwidW5pdCI6Im9wcyJ9.LeDpPVnUw8Dm5KszFe3f8OIE5XHvh2akz8YA4PgiO_sen1J5Ju_A_Vn9thF62n-vHUYDmXF0jW0CTRaQXTLs9A",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJ3WkJtX1loOVRaU1lRX1RlekcydERtczVZWVlLMF9ENDhnME5ySmF3WW5vIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGctMyJ9.nKi3ti4gA0_hSpe4r-0_m2ZI5vIHpjGyI5vlhYYwCnCZYrniItXq4vBePaqKbfriGgjPvLME6IRpEAPdRpPcrg",
+      "expect": "malformed"
+    },
+    {
+      "name": "a token with no client_id is malformed",
+      "why": "client_id is required by RFC 9068 2.2.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbmYiOnsiamt0IjoiLXhTVmhxT3U1Sk1vTlpwZlhWNy1TbmN6WHR4ZmxwZ1NmcndjZVpldWhVUSJ9LCJleHAiOjE4MDAwMDAzMDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly92b3VjaHJ5eC5hY21lLmV4YW1wbGUiLCJqdGkiOiJhZ2VudC10b2stMSIsIm9yZyI6ImRlZmF1bHQiLCJzdWIiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwidW5pdCI6Im9wcyJ9.aO5EJSO6BgrdWJFcCcAkPEXGW7KeUyP5FOhrsTo0-Qa69FMEo5q_qLG1Wvcl3aRV4Ua6FT2-IAR0HfPYlU_tRQ",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJQWnV1aU10c090ZEVoczJsTzFiVkxZNlViR3JYeGZxTjhVZ1FiLXh5NHZnIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGctNCJ9.Y2K4hJOXqGBh9OKMy2PB2mNzo5SXzHSq6UM97DVETVu0RcICIZCf1_mq2SUz_RXdpcu2bX7Q7VBuxOIJYwb0UQ",
+      "expect": "malformed"
+    },
+    {
+      "name": "a token with no jti is malformed",
+      "why": "jti is what revocation names a token by.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwib3JnIjoiZGVmYXVsdCIsInN1YiI6ImFnZW50Oi8vYWNtZS90cmlhZ2UiLCJ1bml0Ijoib3BzIn0.HaedHxdifHv9Rjkm558Nr-EYku6RGsFI13rI2MEwJoAMPj4nLhfXAg4imIA9AAuCH-HourNgA-KrSmTXecrZTg",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJSVVRNa1RIbU1HeWZkVmF1V05ENEY2SDdXVlpkbXZvX1NoYnRyS2tHcG5rIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGctNSJ9.RgUzv9mAY8udD5bgmdI_eyjOakmnp51HM_c7qmsbkPtVLfkwh2siK7JoDO41XjpMgtUy3vVVuRYUZoOFlQEoTg",
+      "expect": "malformed"
+    },
+    {
+      "name": "a token with an act claim is malformed",
+      "why": "An agent token acts for nobody; a chain belongs to a delegation token.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhY3QiOnsic3ViIjoiYWdlbnQ6Ly9hY21lL3J1bmJvb2sifSwiYXVkIjoiaHR0cHM6Ly90b2tlbmZ1c2UuYWNtZS5leGFtcGxlIiwiYXV0aF9zcmMiOiJlbnJvbG1lbnQta2V5IiwiY2xpZW50X2lkIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsImNuZiI6eyJqa3QiOiIteFNWaHFPdTVKTW9OWnBmWFY3LVNuY3pYdHhmbHBnU2Zyd2NlWmV1aFVRIn0sImV4cCI6MTgwMDAwMDMwMCwiaWF0IjoxODAwMDAwMDAwLCJpc3MiOiJodHRwczovL3ZvdWNocnl4LmFjbWUuZXhhbXBsZSIsImp0aSI6ImFnZW50LXRvay0xIiwib3JnIjoiZGVmYXVsdCIsInN1YiI6ImFnZW50Oi8vYWNtZS90cmlhZ2UiLCJ1bml0Ijoib3BzIn0.NnKfgOmiiizc2vKA1EeAtrOLBCW3SgyzFcIUO4ZUi-GEv6OrhoXtq12by1BnHQ3Qh4e5XjNJi3rsXZUF31TiCw",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiIxRnozOXpIZ1ZBWmNFUjhBMThaNGozSVpvYTE3R2I5N1FpZ3RlTVc3eElJIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGctNiJ9.InJLwNawfCtAauaNczZAfgPxB1Kd4PoiBUkORNV5Z-t87_tOPEWiVjNQQb2iEe74m-GcjPjvkOZeDUa1SxWCQg",
+      "expect": "malformed"
+    },
+    {
+      "name": "a token with no cnf is not bound",
+      "why": "vouchryx binds everything it mints; an unbound token is from somewhere else.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.Cd2AplyxUPHgPFSX_NlQBsTdjnKs2kaJqBJ3dibTENul2Fmvcecw4HWBRjugxVtVwO1CxKkGSIPYOGFpDWUkiQ",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJGX0VNUXRyai03NlBTSl81bWNBTzdtRUpuUjFXZUVjTlRUanhFNVZseElzIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGgtMSJ9.4dIDA-OKxrLCNgWvyEVTb9wVbvpipC0ly14xbgg62sP0gvvwui4Crshr6ALoBAY9SlRmppH0JlypfGx6_gxwCw",
+      "expect": "not_bound"
+    },
+    {
+      "name": "a token with an empty cnf.jkt is not bound",
+      "why": "An empty thumbprint binds to nothing.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6IiJ9LCJleHAiOjE4MDAwMDAzMDAsImlhdCI6MTgwMDAwMDAwMCwiaXNzIjoiaHR0cHM6Ly92b3VjaHJ5eC5hY21lLmV4YW1wbGUiLCJqdGkiOiJhZ2VudC10b2stMSIsIm9yZyI6ImRlZmF1bHQiLCJzdWIiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwidW5pdCI6Im9wcyJ9.Mo-dQOeek6boXDFXMcSW2xJ0rvco12zRWSeAZ4retHxx-3CCVIdF4WQknbfYmkiL3nLOg_x3eNhTvQWgxEVG6A",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiIxYTRhTExNbUdQUVFDcWxQUm5nczh5UUVySUtsWHRZOGdRYl9YQ3J4WmtZIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGgtMiJ9.K6HqIJoo5OfM_dWw775WjR280wppXWBJs8l-2qXR28jEMb1z1wVPm6GLR_8IVNN1M2erCTfbSn3bkH88Ah7Zdw",
+      "expect": "not_bound"
+    },
+    {
+      "name": "a bound token with no proof is refused",
+      "why": "A sender-constrained token is never checked as a bearer token.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "expect": "no_proof"
+    },
+    {
+      "name": "a stranger's proof is the wrong key",
+      "why": "The bytes of a stolen token are not enough.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6ImZMRXZyZG8xeGd2Z3VSVExOVGlKSmJsX2RWUmJKc0Y0Q2QwX2JEeVNBNXMiLCJ5Ijoib2owOUpSZ2R5M1dsVk1pYjN5NGVLS0lkNDNLSEJ5bmJ0UjdnYVFtUDBrayIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGktMSJ9.UI6sNzvWEajYBjkYb7bC3mGSk7CVY4nXkjV7OopD6EGytFjwk4sOxm2sfIXHjnKJ1RggNsvxgjPMjdLEqiOpbA",
+      "expect": "wrong_key"
+    },
+    {
+      "name": "a proof with no ath is the wrong key",
+      "why": "RFC 9449 4.2: a proof beside an access token names it.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJodG0iOiJQT1NUIiwiaHR1IjoiaHR0cHM6Ly90b2tlbmZ1c2UuYWNtZS5leGFtcGxlL3YxL21lc3NhZ2VzIiwiaWF0IjoxODAwMDAwMDAwLCJqdGkiOiJwaS0yIn0.dx7_yx0gu5yQrSrrLU5gej7E-F0pawz8nURogXgAjq9El8xtTP__P9375iR_Rfgz1Jcbr3GqboSgTfu9sAgmmw",
+      "expect": "wrong_key"
+    },
+    {
+      "name": "a proof naming another token of the same holder is the wrong key",
+      "why": "Without ath a proof binds a request to a key, not to a token.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJyS29GTmI4UGdERVRfbHpFNUM4UW55cTJUbGJHNDg3Tm1GVVRhd1pjdlNvIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGktMyJ9.dB-B32OHo70Yh0Xn71pICcN4lK_yYMXma4x5tAlRb2oXMGqXl0Fk3foYcA72xIc_swITGq6u6O7UCb8trnJqZA",
+      "expect": "wrong_key"
+    },
+    {
+      "name": "a proof for another URL is the wrong key",
+      "why": "A proof is for one request.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9jaGF0L2NvbXBsZXRpb25zIiwiaWF0IjoxODAwMDAwMDAwLCJqdGkiOiJwaS00In0.T1YKaBJxIIJYFJHlGi9IsmXS_JwKE-ULOlaiuJB5NUio1QyKttBs7ORpIwDsjTiKN7fx0ehj0hh2NrGh1lu4iQ",
+      "expect": "wrong_key"
+    },
+    {
+      "name": "a proof for another method is the wrong key",
+      "why": "A proof is for one request.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoiR0VUIiwiaHR1IjoiaHR0cHM6Ly90b2tlbmZ1c2UuYWNtZS5leGFtcGxlL3YxL21lc3NhZ2VzIiwiaWF0IjoxODAwMDAwMDAwLCJqdGkiOiJwaS01In0.OOZ4p8j3ys7YfWjrG9-Dfuz3rCXjGVdH1lMD8356o_Fc4vHfTSj96dbasa4CL-n3-SiidnIF1u2hD0jtaeEoig",
+      "expect": "wrong_key"
+    },
+    {
+      "name": "a proof sixty-one seconds old is the wrong key",
+      "why": "A proof is for one moment, within sixty seconds either way.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTc5OTk5OTkzOSwianRpIjoicGktNiJ9.AM3zmPNv2Ag36so5RR5DVGQDZDR1jELzM_pfgzjpCofo2mmqCkfZJyWpy8QvM9wr1ECjK46-GILxKWAZZWz7gA",
+      "expect": "wrong_key"
+    },
+    {
+      "name": "a proof whose jti is longer than 256 bytes is the wrong key",
+      "why": "A client chooses its jti and the replay cache stores it.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoiampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqampqamoifQ.Qq_b7RLqmNsnNp8OtbouLATwsIRpOx8V5PXqCaHza8PEK58Knrmdo_nJFD8A9eHi5zzy_mbAxy6I0cXtWwON8g",
+      "expect": "wrong_key"
+    },
+    {
+      "name": "a proof with no jti is the wrong key",
+      "why": "Without a jti nothing can make a proof single use.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoiIn0.lllzlngp14CmuQm4vXhht3NlsY7qbK2IUBopCEhVy_ghZu0kjmUgLafHP4rzo0tvg_Ne0EhpiMtAeLd9Ley1qg",
+      "expect": "wrong_key"
+    },
+    {
+      "name": "a proof whose method is written in lower case is the wrong key",
+      "why": "RFC 9110 methods are case sensitive (agent-stack-go invariant 24).",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoicG9zdCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGktNyJ9.IjCywefmuKrCYuflOUBZPTx88mcrhfraCQErUYDWioX5fsP3qQ7hfVnSVQ_AvelJkn6-jp7i9xKJ86pnnYrhig",
+      "expect": "wrong_key",
+      "known_divergence": {
+        "tokenfuse_ddf8dc5": "accept",
+        "why": "crates/dpop/src/lib.rs verify_proof compares htm with eq_ignore_ascii_case."
+      }
+    },
+    {
+      "name": "a proof whose host is written in upper case is the same request",
+      "why": "RFC 9449 4.3 applies RFC 3986 6.2.2.1: scheme and host compare without case (agent-stack-go invariant 24).",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vVE9LRU5GVVNFLkFDTUUuRVhBTVBMRS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGktOCJ9.5sd8B-0tVq3eqFwPOk6oSu4LtU15rAhKdhLIcoenL2AbX3DcF7mhoB5xZsYMTzdxnuoejEoqxeu9uro_x7vVEA",
+      "expect": "accept",
+      "known_divergence": {
+        "tokenfuse_ddf8dc5": "wrong_key",
+        "why": "crates/dpop/src/lib.rs verify_proof compares htu and the URL as strings, query trimmed, with no case fold of scheme or host."
+      }
+    },
+    {
+      "name": "a token whose agent is revoked is refused",
+      "why": "Stopping one agent is one revocation naming it.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGotMSJ9.adiE_U8ka9xcES6ALisT-pRhMu2unoeecLlrgYuoyIifJP4L9svu-liAZ-3kuXGLjW6H7VcOmtOsnnDb_k3meA",
+      "revoke": {
+        "subject": "agent://acme/triage"
+      },
+      "expect": "revoked"
+    },
+    {
+      "name": "a token whose jti is revoked is refused",
+      "why": "A revocation may name one token.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6IjFUZ0Q5bUh0YlFvZmhRZU9YVHBHTjJDUkVPaDR1WTl5TWdYT1llN1RpWlUiLCJ5IjoiNTdqV2g4TVlPcDAyTUpKVDlFeUxZMWpHRC02MHFDb1lzTENsdkM3SGk1WSIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGotMiJ9.4SrfSVXbCCeNiWDu36FW-ANqm5n-C0bLa-mcqXowIOYWBQEvG7qdZT620ptRuf-t97HK05UwJFhoxyon7n8QYA",
+      "revoke": {
+        "jti": "agent-tok-1"
+      },
+      "expect": "revoked"
+    },
+    {
+      "name": "a revocation does not mask a stolen proof",
+      "why": "The hook is asked last, so a token failing its proof is refused for the proof.",
+      "verifier": "agent",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "dpop": "eyJhbGciOiJFUzI1NiIsImp3ayI6eyJrdHkiOiJFQyIsImNydiI6IlAtMjU2IiwieCI6ImZMRXZyZG8xeGd2Z3VSVExOVGlKSmJsX2RWUmJKc0Y0Q2QwX2JEeVNBNXMiLCJ5Ijoib2owOUpSZ2R5M1dsVk1pYjN5NGVLS0lkNDNLSEJ5bmJ0UjdnYVFtUDBrayIsInVzZSI6InNpZyIsImFsZyI6IkVTMjU2In0sInR5cCI6ImRwb3Arand0In0.eyJhdGgiOiJWc0s0bm9iOVFvRVI2d0tjM2xUT2tFdUFoNFZkalBleUxMRVd0aTBxUFZFIiwiaHRtIjoiUE9TVCIsImh0dSI6Imh0dHBzOi8vdG9rZW5mdXNlLmFjbWUuZXhhbXBsZS92MS9tZXNzYWdlcyIsImlhdCI6MTgwMDAwMDAwMCwianRpIjoicGotMyJ9.hLTwU9p_ns4BcOZNN3hTOljduBf8y-w0n00NjPIup-XTxhDdqgGcYm8JSazEosIj6YKCPAlLXuUQaBCR9YTfDw",
+      "revoke": {
+        "subject": "agent://acme/triage"
+      },
+      "expect": "wrong_key"
+    },
+    {
+      "name": "a relayed token verifies without a proof",
+      "why": "Another door of this deployment checked the proof; everything else is checked again.",
+      "verifier": "relayed",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "expect": "accept",
+      "verified": {
+        "subject": "agent://acme/triage",
+        "unit": "ops",
+        "org": "default",
+        "jti": "agent-tok-1",
+        "jkt": "-xSVhqOu5JMoNZpfXV7-SnczXtxflpgSfrwceZeuhUQ",
+        "proof_jti": "",
+        "issued_at": 1800000000,
+        "expires_at": 1800000300
+      }
+    },
+    {
+      "name": "a relayed token with no cnf is not bound",
+      "why": "Relayed skips the proof, never the binding.",
+      "verifier": "relayed",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.TZxK_8QtE53Wea7_edFSmyhOsT7JGv96wzdnn5CrIa9ztRdL--H72p3MQZ7mI9GOEEPvoYOkUDQZwMlno6qBpQ",
+      "expect": "not_bound"
+    },
+    {
+      "name": "a relayed token past its leeway is expired",
+      "why": "Relayed skips the proof, never the clock.",
+      "verifier": "relayed",
+      "now": 1800000330,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "expect": "expired"
+    },
+    {
+      "name": "a relayed token typed JWT is malformed",
+      "why": "Relayed skips the proof, never the typ.",
+      "verifier": "relayed",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.GZ0cxk2BkhZos8K0kuyYiDhmE2n9RxfO6QFzfbTa-YSnpNVGjKxr392RfH2EdAziTGYE6kSHgxKLTkdaU_bb8Q",
+      "expect": "malformed"
+    },
+    {
+      "name": "a relayed revoked token is refused",
+      "why": "Relayed skips the proof, never the revocation list.",
+      "verifier": "relayed",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "revoke": {
+        "subject": "agent://acme/triage"
+      },
+      "expect": "revoked"
+    },
+    {
+      "name": "a relayed token at a door with no audience is refused",
+      "why": "Relayed skips the proof, never the audience.",
+      "verifier": "relayed",
+      "now": 1800000000,
+      "jws": "eyJhbGciOiJFUzI1NiIsImtpZCI6InYtMSIsInR5cCI6ImF0K2p3dCJ9.eyJhdWQiOiJodHRwczovL3Rva2VuZnVzZS5hY21lLmV4YW1wbGUiLCJhdXRoX3NyYyI6ImVucm9sbWVudC1rZXkiLCJjbGllbnRfaWQiOiJhZ2VudDovL2FjbWUvdHJpYWdlIiwiY25mIjp7ImprdCI6Ii14U1ZocU91NUpNb05acGZYVjctU25jelh0eGZscGdTZnJ3Y2VaZXVoVVEifSwiZXhwIjoxODAwMDAwMzAwLCJpYXQiOjE4MDAwMDAwMDAsImlzcyI6Imh0dHBzOi8vdm91Y2hyeXguYWNtZS5leGFtcGxlIiwianRpIjoiYWdlbnQtdG9rLTEiLCJvcmciOiJkZWZhdWx0Iiwic3ViIjoiYWdlbnQ6Ly9hY21lL3RyaWFnZSIsInVuaXQiOiJvcHMifQ.H9t55WeCTNRn9QkivutRFjlPGP2b3GxLecqW4SNaWA7d5PB8fSvBl614dtyp0vyqDED9jFzV0Ydn9EdfYR3PhA",
+      "audience": "",
+      "expect": "audience"
+    }
+  ],
+  "replay": [
+    {
+      "name": "a second use of one jti is refused",
+      "why": "A proof is single use inside its window.",
+      "cap": 16,
+      "steps": [
+        {
+          "jti": "j1",
+          "now": 1000,
+          "expect": "ok"
+        },
+        {
+          "jti": "j1",
+          "now": 1000,
+          "expect": "seen"
+        },
+        {
+          "jti": "j1",
+          "now": 1010,
+          "expect": "seen"
+        }
+      ]
+    },
+    {
+      "name": "distinct jtis are all admitted",
+      "why": "The negative control: a cache that refused everything would pass the case above.",
+      "cap": 16,
+      "steps": [
+        {
+          "jti": "j0",
+          "now": 1000,
+          "expect": "ok"
+        },
+        {
+          "jti": "j1",
+          "now": 1000,
+          "expect": "ok"
+        },
+        {
+          "jti": "j2",
+          "now": 1000,
+          "expect": "ok"
+        },
+        {
+          "jti": "j3",
+          "now": 1000,
+          "expect": "ok"
+        },
+        {
+          "jti": "j4",
+          "now": 1000,
+          "expect": "ok"
+        },
+        {
+          "jti": "j5",
+          "now": 1000,
+          "expect": "ok"
+        },
+        {
+          "jti": "j6",
+          "now": 1000,
+          "expect": "ok"
+        },
+        {
+          "jti": "j7",
+          "now": 1000,
+          "expect": "ok"
+        },
+        {
+          "jti": "j8",
+          "now": 1000,
+          "expect": "ok"
+        },
+        {
+          "jti": "j9",
+          "now": 1000,
+          "expect": "ok"
+        }
+      ]
+    },
+    {
+      "name": "a jti survives every moment a proof carrying it could still be fresh",
+      "why": "A proof's iat may sit a window ahead of now and now a window past iat, so a generation is two windows.",
+      "cap": 16,
+      "steps": [
+        {
+          "jti": "j1",
+          "now": 1000000,
+          "expect": "ok"
+        },
+        {
+          "jti": "j1",
+          "now": 1000120,
+          "expect": "seen"
+        },
+        {
+          "jti": "j1",
+          "now": 1000480,
+          "expect": "ok"
+        }
+      ]
+    },
+    {
+      "name": "a jti recorded in the last second of a generation outlives the next one",
+      "why": "The rotation boundary: the previous generation is consulted for a whole generation more.",
+      "cap": 16,
+      "steps": [
+        {
+          "jti": "j0",
+          "now": 1000000,
+          "expect": "ok"
+        },
+        {
+          "jti": "late",
+          "now": 1000119,
+          "expect": "ok"
+        },
+        {
+          "jti": "late",
+          "now": 1000120,
+          "expect": "seen"
+        },
+        {
+          "jti": "late",
+          "now": 1000239,
+          "expect": "seen"
+        }
+      ]
+    },
+    {
+      "name": "a full cache refuses rather than forgetting",
+      "why": "Forgetting under pressure is a replay guard that stops guarding exactly when somebody pushes on it.",
+      "cap": 2,
+      "steps": [
+        {
+          "jti": "j1",
+          "now": 1000,
+          "expect": "ok"
+        },
+        {
+          "jti": "j2",
+          "now": 1000,
+          "expect": "ok"
+        },
+        {
+          "jti": "j3",
+          "now": 1000,
+          "expect": "full"
+        },
+        {
+          "jti": "j1",
+          "now": 1000,
+          "expect": "seen"
+        },
+        {
+          "jti": "j3",
+          "now": 1120,
+          "expect": "ok"
+        },
+        {
+          "jti": "j1",
+          "now": 1120,
+          "expect": "seen"
+        }
+      ]
+    },
+    {
+      "name": "a clock that walks backwards does not empty the cache",
+      "why": "A start time that only moves forward: stepping a clock back never rotates the generations.",
+      "cap": 16,
+      "steps": [
+        {
+          "jti": "j1",
+          "now": 1000000,
+          "expect": "ok"
+        },
+        {
+          "jti": "j1",
+          "now": 999400,
+          "expect": "seen"
+        },
+        {
+          "jti": "j1",
+          "now": 1000060,
+          "expect": "seen"
+        }
+      ]
+    }
+  ]
+}
