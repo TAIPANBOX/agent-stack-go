@@ -417,6 +417,30 @@ run_case "door-and-record: a rule renamed on BOTH sides" pass \
 	"$(py 'edit_all("chain/chain.go", "ErrCycle", "ErrLoop")
 edit_all("delegation/chain.go", "ErrCycle", "ErrLoop")')"
 
+# invariant 30: the vendored checkpoint vectors are the canonical file, byte for
+# byte. Drift, a missing sibling, and a copy that is not tracked are each a fault;
+# a touch that changes no byte is the non-fault.
+run_case "checkpoint-vectors-in-sync: the vendored vectors drift from the canonical file" fail \
+	'./scripts/checkpoint-vectors-in-sync.sh' \
+	"$(py 'edit("event/testdata/checkpoint-vectors.json", "\"description\"", "\"description \"")')" \
+	"differs from"
+
+run_case "checkpoint-vectors-in-sync: the canonical repository is not beside this one" fail_env \
+	'AGENT_PASSPORT_DIR=/nonexistent/agent-passport ./scripts/checkpoint-vectors-in-sync.sh' \
+	"$(py 'pass')" \
+	"measured nothing"
+
+run_case "checkpoint-vectors-in-sync: the vendored vectors are not tracked" fail \
+	'./scripts/checkpoint-vectors-in-sync.sh' \
+	"$(py 'import subprocess
+subprocess.run(["git", "mv", "event/testdata/checkpoint-vectors.json", "event/testdata/checkpoint-vectors.json.disabled"], check=True)')" \
+	"measured nothing"
+
+run_case "checkpoint-vectors-in-sync: the vendored vectors touched but unchanged" pass \
+	'./scripts/checkpoint-vectors-in-sync.sh' \
+	"$(py 'import os
+os.utime("event/testdata/checkpoint-vectors.json", None)')"
+
 echo
 if [ -n "$(git status --porcelain)" ]; then
 	printf 'FAIL: this script left the tree dirty, so it cannot be trusted about anything above\n'

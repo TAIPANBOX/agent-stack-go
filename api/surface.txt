@@ -80,6 +80,9 @@ delegation: var ErrTooDeep = fmt.Errorf("delegation: the delegation chain is lon
 delegation: var ErrUnknownKid = errors.New("delegation: no key in the set has that kid")
 delegation: var ErrWrongKey = errors.New("delegation: the presenter does not hold the key this token is bound to")
 event: const ChainHashPrefix = "sha256:"
+event: const CheckpointRefused CheckpointStatus = iota
+event: const CheckpointUnsigned
+event: const CheckpointValid
 event: const SchemaV01 = "taipanbox.dev/agent-event/v0.1"
 event: const SchemaV02 = "taipanbox.dev/agent-event/v0.2"
 event: const SchemaV03 = "taipanbox.dev/agent-event/v0.3"
@@ -93,31 +96,48 @@ event: func (cw *ChainedWriter) Close() error
 event: func (cw *ChainedWriter) ResumedFrom() string
 event: func (cw *ChainedWriter) Write(e Event) error
 event: func (r ChainReport) Ok() bool
+event: func (r CheckpointReport) ResumeCounts() []int
+event: func (w *CheckpointedWriter) Close() error
+event: func (w *CheckpointedWriter) ResumedFrom() string
+event: func (w *CheckpointedWriter) Write(e Event) error
 event: func (w *Writer) Close() error
 event: func (w *Writer) Write(e Event) error
 event: func Canonicalize(e Event) ([]byte, error)
 event: func CanonicalizeRaw(line []byte) ([]byte, error)
 event: func ChainHash(e Event) (string, error)
 event: func ChainHashRaw(line []byte) (string, error)
+event: func CheckpointFileName(stream string) string
 event: func Marshal(e Event) ([]byte, error)
 event: func NewChainedWriter(path string) (*ChainedWriter, error)
+event: func NewChainedWriterWithCheckpoints(path string, cfg CheckpointConfig) (*CheckpointedWriter, error)
 event: func NewWriter(path string) (*Writer, error)
 event: func ReadFile(path string) ([]Event, error)
 event: func Scan(r io.Reader, fn func(Event) error) (ScanResult, error)
 event: func Unmarshal(data []byte) (Event, error)
 event: func VerifyChain(r io.Reader) (ChainReport, error)
+event: func VerifyChainRestarts(r io.Reader) (ChainReport, []Restart, error)
+event: func VerifyCheckpoints(stream, sidecar io.Reader, streamName string, keys func(kid string) (*ecdsa.PublicKey, bool)) (CheckpointReport, error)
 event: type ChainBreak struct {  Line	int  Expected	string  Found	string }
 event: type ChainReport struct {    Lines	int Malformed	int  Chained	int   HeadLines	[]int   Unverifiable	[]int  Breaks	[]ChainBreak }
 event: type ChainedWriter struct { mu	sync.Mutex file	*os.File  next	string  resumedFrom	string }
+event: type CheckpointConfig struct {    Dir	string  Signer	CheckpointSigner  Every	int    Interval	time.Duration  Now	func() time.Time }
+event: type CheckpointReport struct {  StreamLines	int  Records	[]CheckpointResult }
+event: type CheckpointResult struct {  Index	int Kind	string Count	int  Status	CheckpointStatus  Refusal	string   Truncated	bool }
+event: type CheckpointSigner interface { KeyID() string Sign(signingInput []byte) ([]byte, error) }
+event: type CheckpointStatus int
+event: type CheckpointedWriter struct { cw	*ChainedWriter ck	*checkpointer }
 event: type Event struct { Schema	string		`json:"schema"` TS	string		`json:"ts"` Source	string		`json:"source"` Type	string		`json:"type"` AgentID	string		`json:"agent_id"` Severity	string		`json:"severity,omitempty"` RunID	string		`json:"run_id,omitempty"` OnBehalfOf	[]string		`json:"on_behalf_of,omitempty"` Data	map[string]any		`json:"data,omitempty"` PrevHash	string		`json:"prev_hash,omitempty"` }
+event: type Restart struct { Line	int After	int }
 event: type ScanResult struct { Lines	int Malformed	int }
 event: type Writer struct { mu	sync.Mutex file	*os.File }
+event: var ErrCheckpointKeyExpired = errors.New("event: checkpoint key expired")
 event: var ErrInvalidJSON = errors.New("event: invalid json")
 event: var ErrMissingAgentID = errors.New("event: missing required field: agent_id")
 event: var ErrMissingSchema = errors.New("event: missing required field: schema")
 event: var ErrMissingSource = errors.New("event: missing required field: source")
 event: var ErrMissingTS = errors.New("event: missing required field: ts")
 event: var ErrMissingType = errors.New("event: missing required field: type")
+event: var ErrNoCheckpoints = errors.New("event: no checkpoint record to verify")
 passport: const ClaimedPrefix = "claimed:"
 passport: const RequiredSchema = SchemaV01
 passport: const SchemaV01 = "taipanbox.dev/agent-passport/v0.1"
