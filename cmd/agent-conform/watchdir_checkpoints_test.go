@@ -326,3 +326,68 @@ func TestWatchDirRefusesAKeyFiledUnderAnotherKid(t *testing.T) {
 		t.Fatalf("a key under a kid that is not its thumbprint must stop the run: exit %d\n%s", r.code, r.stderr)
 	}
 }
+
+// loadCheckpointKeys refuses every key that is not a P-256 point under its own
+// thumbprint, and an empty set.
+func TestTheKeysFileRefusesEveryKeyThatIsNotAPointUnderItsThumbprint(t *testing.T) {
+	s := newWdSigner(t)
+	good := wdKeysFile(t, t.TempDir(), s)
+	raw, err := os.ReadFile(good)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc map[string]map[string]string
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	inner := doc[s.kid]
+	mutate := func(f func(m map[string]string)) string {
+		m := map[string]string{}
+		for k, v := range inner {
+			m[k] = v
+		}
+		f(m)
+		b, _ := json.Marshal(map[string]map[string]string{s.kid: m})
+		p := filepath.Join(t.TempDir(), "keys.json")
+		if err := os.WriteFile(p, b, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	cases := map[string]string{
+		"not json":       "not json",
+		"no keys":        "{}",
+		"not P-256":      mutate(func(m map[string]string) { m["crv"] = "P-384" }),
+		"x of 31 bytes":  mutate(func(m map[string]string) { m["x"] = m["x"][:42] }),
+		"y not base64":   mutate(func(m map[string]string) { m["y"] = "!!!" }),
+		"not on a curve": mutate(func(m map[string]string) { m["y"] = m["x"] }),
+	}
+	for name, path := range cases {
+		if strings.HasPrefix(path, "{") || path == "not json" {
+			p := filepath.Join(t.TempDir(), "keys.json")
+			if err := os.WriteFile(p, []byte(path), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			path = p
+		}
+		if _, err := loadCheckpointKeys(path); err == nil {
+			t.Fatalf("%s: a keys file that holds a bad key must be refused", name)
+		}
+	}
+	if _, err := loadCheckpointKeys(good); err != nil {
+		t.Fatalf("the right key loads: %v", err)
+	}
+}
+
+func TestWatchDirCheckpointsMustBeADirectory(t *testing.T) {
+	dir := t.TempDir()
+	wdEvents(t, filepath.Join(dir, "wardryx.ndjson"), 1, 2)
+	s := newWdSigner(t)
+	notDir := filepath.Join(dir, "a-file")
+	if err := os.WriteFile(notDir, []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if r := runWatch(t, "-checkpoints", notDir, "-checkpoint-keys", wdKeysFile(t, dir, s), dir); r.code != 2 {
+		t.Fatalf("-checkpoints must name a directory: exit %d", r.code)
+	}
+}

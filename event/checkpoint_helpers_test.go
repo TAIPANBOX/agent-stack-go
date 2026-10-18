@@ -160,3 +160,14 @@ func ckForeignDir(t *testing.T) {
 	dirOwner = func(string) (bool, error) { return false, nil }
 	t.Cleanup(func() { dirOwner = prev })
 }
+
+// appendText appends s to path, as another writer or a crash would.
+func appendText(path, s string) error {
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.WriteString(s)
+	return err
+}
