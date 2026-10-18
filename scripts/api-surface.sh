@@ -38,4 +38,4 @@ if ! out=$(go test ./internal/apisurface -run TestTheSurfaceFileIsWhatTheSourceE
 fi
 
 count=$(grep -c . api/surface.txt)
-printf 'OK: %s exported declarations across chain, delegation, event and passport, exactly what api/surface.txt promises.\n' "$count"
+printf 'OK: %s exported declarations across the promised packages (internal/apisurface Packages), exactly what api/surface.txt promises.\n' "$count"

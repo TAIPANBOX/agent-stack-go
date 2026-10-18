@@ -290,6 +290,22 @@ run_case "deps-layering: a stdlib import added to a library package" pass \
 	'./scripts/deps-layering.sh' \
 	"$(py 'edit("passport/load.go", "import (", "import (\n\t_ \"sort\"")')"
 
+# invariant 31. delegation importing keyclient would also be an import cycle, so
+# the rule is read as text first and named by it; the build never gets to speak.
+run_case "deps-layering: delegation imports keyclient" fail \
+	'./scripts/deps-layering.sh' \
+	"$(py 'edit("delegation/verify.go", "import (", "import (\n\t_ \"github.com/TAIPANBOX/agent-stack-go/keyclient\"")')" \
+	"imports keyclient"
+
+run_case "deps-layering: keyclient takes a third-party import" fail \
+	'./scripts/deps-layering.sh' \
+	"$(py 'edit("keyclient/client.go", "import (", "import (\n\t_ \"github.com/gowebpki/jcs\"")')" \
+	"imports third-party"
+
+run_case "deps-layering: a stdlib import added to keyclient" pass \
+	'./scripts/deps-layering.sh' \
+	"$(py 'edit("keyclient/client.go", "import (", "import (\n\t_ \"sort\"")')"
+
 # The binding is read off the `# @test:` line, so prose in a scenario body that
 # happens to name a test must not be mistaken for one. A gate that fires on a
 # correct file gets deleted by whoever is unblocking CI.

@@ -138,6 +138,29 @@ event: var ErrMissingSource = errors.New("event: missing required field: source"
 event: var ErrMissingTS = errors.New("event: missing required field: ts")
 event: var ErrMissingType = errors.New("event: missing required field: type")
 event: var ErrNoCheckpoints = errors.New("event: no checkpoint record to verify")
+keyclient: func (c *Client) Delegated(name, alg string, lifetime time.Duration) (*Delegated, error)
+keyclient: func (c *Client) JWKS(name string) (*JWKS, error)
+keyclient: func (c *Client) Sign(ctx context.Context, name string, msg []byte, purpose string) (Signature, error)
+keyclient: func (d *Delegated) Current() (Key, error)
+keyclient: func (d *Delegated) RenewIfDue(ctx context.Context) (bool, error)
+keyclient: func (d *Delegated) Run(ctx context.Context, onErr func(error))
+keyclient: func (d *Delegated) Sign(msg []byte) (Signature, error)
+keyclient: func (e *StatusError) Error() string
+keyclient: func (j *JWKS) Fetched() time.Time
+keyclient: func (j *JWKS) Lookup(kid string) (delegation.JWK, error)
+keyclient: func (j *JWKS) Refresh(ctx context.Context) error
+keyclient: func (j *JWKS) Run(ctx context.Context, every time.Duration, onErr func(error))
+keyclient: func (j *JWKS) Set() delegation.Set
+keyclient: func New(cfg Config) (*Client, error)
+keyclient: type Client struct { base	string consumer	string cred	Credential hc	*http.Client now	func() time.Time }
+keyclient: type Config struct {   BaseURL	string   Consumer	string  Credential	Credential  Now	func() time.Time }
+keyclient: type Credential struct {   Socket	string    BearerFile	string }
+keyclient: type Delegated struct { c	*Client name	string alg	string lifetime	time.Duration retry	time.Duration  renewMu	sync.Mutex mu	sync.Mutex keys	[]*certified nextTry	time.Time }
+keyclient: type JWKS struct { c	*Client name	string  mu	sync.RWMutex set	delegation.Set byKid	map[string]delegation.JWK fetched	time.Time }
+keyclient: type Key struct { Kid	string JWK	delegation.JWK Statement	json.RawMessage NotBefore	time.Time NotAfter	time.Time }
+keyclient: type Signature struct { Alg	string Kid	string Sig	[]byte }
+keyclient: type StatusError struct { Route	string Code	int }
+keyclient: var ErrNoValidKey = errors.New("keyclient: no delegated key is valid now")
 passport: const ClaimedPrefix = "claimed:"
 passport: const RequiredSchema = SchemaV01
 passport: const SchemaV01 = "taipanbox.dev/agent-passport/v0.1"

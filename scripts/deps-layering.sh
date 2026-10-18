@@ -59,6 +59,17 @@ check_pkg() {
 	done <<<"$imports"
 }
 
+# Invariant 31: verification never waits on custody. delegation must not import
+# keyclient. This is read as TEXT, before any `go list`, so a planted import
+# reports this rule by name and not as an import cycle from the build.
+for f in delegation/*.go; do
+	case "$f" in *_test.go) continue ;; esac
+	if grep -q '"github.com/TAIPANBOX/agent-stack-go/keyclient"' "$f"; then
+		echo "FAIL: $f imports keyclient. delegation verifies with what the process holds and never waits on custody (CLAUDE.md invariant 31)."
+		fail=1
+	fi
+done
+
 check_pkg passport
 check_pkg chain
 # delegation verifies RFC 8693 tokens for every enforcement point in the estate.
@@ -67,6 +78,9 @@ check_pkg chain
 # on our behalf in seven consumers at once.
 check_pkg delegation
 check_pkg event github.com/gowebpki/jcs
+# keyclient (invariant 31) is the consumer side of custody: the standard library,
+# and this module's own delegation package for JWKs and thumbprints.
+check_pkg keyclient github.com/TAIPANBOX/agent-stack-go/delegation
 
 if [ "$fail" -ne 0 ]; then
 	echo

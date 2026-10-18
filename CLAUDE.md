@@ -147,12 +147,14 @@ had one, is worse than an absent invariant.
    is required by SPEC 6.5. `github.com/santhosh-tekuri/jsonschema/v6` is for
    `cmd/agent-conform` and tests only and must never appear in a library
    package. A dependency added here lands in six consumers at once.
+   `keyclient` (invariant 31) imports the standard library and `delegation`,
+   this module's own package, and nothing else.
    *(gate: `scripts/deps-layering.sh`)*
 2. **A change to an exported type, constant, or error value is a version
    decision, not an edit.** Consumers pin by tag. Additive and backward
    compatible, or ask the user first. Since 1.0 (2026-09-12) the surface is a
    file: `api/surface.txt` lists every exported declaration of `chain`,
-   `delegation`, `event` and `passport`, read out of the source by
+   `delegation`, `event`, `keyclient` and `passport`, read out of the source by
    `internal/apisurface`. *(gate: `scripts/api-surface.sh`: a line lost or
    changed fails unless the gate is run with `--major`, a line added fails
    until the file records it, and no file is measured nothing; four cases in
@@ -320,8 +322,8 @@ had one, is worse than an absent invariant.
     harness version differ only in how many layers of quoting sit between the
     text and python. So every mutation asserts it applied: a case whose edit
     changed nothing is a failure, not a pass.
-    *(gate: `scripts/gates-have-teeth.sh`, 35 cases: seventeen real faults each
-    gate must catch, seven non-faults they must not, and eleven subjects taken away
+    *(gate: `scripts/gates-have-teeth.sh`, 38 cases: nineteen real faults each
+    gate must catch, eight non-faults they must not, and eleven subjects taken away
     entirely, where the gate must say it measured nothing rather than report
     OK. It said 12 until `features-are-bound.sh` arrived on 2026-08-26 with four
     cases of its own, it said 16 until the version-badge half of
@@ -333,7 +335,9 @@ had one, is worse than an absent invariant.
     cases had been added without the count, and sat below the check that turns a
     failed case into a failed run, so they could never have failed it. They sit
     above it now, and the image gate and the Dockerfile half of
-    `reproducible-build.sh` brought five of their own.
+    `reproducible-build.sh` brought five of their own. It said 35 until
+    2026-10-18, when the keyclient layering rules arrived with two faults and one
+    non-fault.
     `./scripts/gates-have-teeth.sh | grep -c '^ok '` is the command. The third non-fault arrived on 2026-08-26 and is the first here that
     runs a gate under a HOOK'S ENVIRONMENT rather than in a plain shell,
     because the fault it pins exists only there: `schemas-in-sync.sh` reads
@@ -941,4 +945,44 @@ refactors that keep every exported signature identical, and additions to
     `TestTheVendoredRecordsVerifyOnTheirStream`, and the `TestVerifyCheckpoints*`
     refusals; four cases in `gates-have-teeth.sh`: drift, a missing sibling, an
     untracked copy, and a touch that changes no byte, which must pass.)*
+
+31. **Verification never waits on custody.** `delegation` does not import
+    `keyclient`, and `keyclient` imports only the standard library and
+    `delegation`. Its reads (`JWKS.Set`, `JWKS.Lookup`, `Delegated.Current`,
+    `Delegated.Sign`) make no request, so a token is checked against what the
+    process already holds, as invariant 15 requires of `delegation`. Custody is
+    called by `Refresh`, `RenewIfDue` and `Sign` (held keys) only, on a schedule
+    or at human rate.
+    *(gate: `scripts/deps-layering.sh`, which reads `delegation`'s imports as
+    text before any build and refuses `keyclient` by name, with teeth cases for
+    that and for a third-party import in `keyclient`. test:
+    `TestReadingTheCacheNeverReachesCustody`)*
+
+32. **A delegated key signs only inside its own statement's life, and a key set
+    is installed whole or not at all.** `Delegated.Sign` refuses a key whose
+    `not_before` has not begun and one whose `not_after` has passed
+    (`ErrNoValidKey`). A renewal is asked for at half the life. A `JWKS.Refresh`
+    that finds one key malformed, not on its curve, with a kid that is not its
+    RFC 7638 thumbprint, or a kid repeated, keeps the cache it held, and a kid
+    the cache never installed is `delegation.ErrUnknownKid` whatever custody
+    answers now, never a fallback to another key.
+    *(test: `TestAnExpiredStatementIsNeverUsedToSign`,
+    `TestAPublishAheadKeyIsNotUsedBeforeItsNotBefore`,
+    `TestRenewalIsAskedForAtHalfLife`,
+    `TestAMalformedSetIsRefusedWholeAndTheCacheKept`,
+    `TestAnUnknownKidIsRefusedFromTheCache`; mutants planted 2026-10-18 and
+    caught by name: renewal never asked, an expired statement signing, a kid
+    accepted from the cache, a bad point skipped instead of refusing the set, the
+    thumbprint check removed, the cache cleared by a failed poll, `not_before`
+    ignored, renewal at full life)*
+
+33. **A credential goes to the one host it was configured for, and never into an
+    error.** `keyclient.New` refuses a configuration that names two credentials,
+    none, or a socket by a relative path, and the client does not follow a
+    redirect, so a bearer credential is never sent to a host custody did not
+    name. A refusal carries the status and the route, never the credential.
+    *(test: `TestACredentialNamingTwoWaysOrNoneIsRefused`,
+    `TestARedirectIsNotFollowedWithTheCredential`,
+    `TestAnErrorNeverCarriesTheCredential`; mutants planted 2026-10-18: redirects
+    followed, the credential echoed into a refusal; each caught by its test)*
 
