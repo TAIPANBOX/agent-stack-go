@@ -114,6 +114,7 @@ go build ./...
 ./scripts/readme-numbers.sh
 ./scripts/reproducible-build.sh
 ./scripts/checkpoint-vectors-in-sync.sh   # invariant 30; needs agent-passport checked out beside this repo
+./scripts/test-keys-stay-test-only.sh   # invariant 36
 ./scripts/gates-have-teeth.sh   # invariant 14; needs a clean tree, run it after committing
 ```
 
@@ -322,8 +323,8 @@ had one, is worse than an absent invariant.
     harness version differ only in how many layers of quoting sit between the
     text and python. So every mutation asserts it applied: a case whose edit
     changed nothing is a failure, not a pass.
-    *(gate: `scripts/gates-have-teeth.sh`, 38 cases: nineteen real faults each
-    gate must catch, eight non-faults they must not, and eleven subjects taken away
+    *(gate: `scripts/gates-have-teeth.sh`, 43 cases: twenty-two real faults each
+    gate must catch, nine non-faults they must not, and twelve subjects taken away
     entirely, where the gate must say it measured nothing rather than report
     OK. It said 12 until `features-are-bound.sh` arrived on 2026-08-26 with four
     cases of its own, it said 16 until the version-badge half of
@@ -337,7 +338,8 @@ had one, is worse than an absent invariant.
     above it now, and the image gate and the Dockerfile half of
     `reproducible-build.sh` brought five of their own. It said 35 until
     2026-10-18, when the keyclient layering rules arrived with two faults and one
-    non-fault.
+    non-fault, and it said 38 until the test-only key gate (invariant 36) arrived
+    the same day with three faults, one non-fault and one subject taken away.
     `./scripts/gates-have-teeth.sh | grep -c '^ok '` is the command. The third non-fault arrived on 2026-08-26 and is the first here that
     runs a gate under a HOOK'S ENVIRONMENT rather than in a plain shell,
     because the fault it pins exists only there: `schemas-in-sync.sh` reads
@@ -986,3 +988,95 @@ refactors that keep every exported signature identical, and additions to
     `TestAnErrorNeverCarriesTheCredential`; mutants planted 2026-10-18: redirects
     followed, the credential echoed into a refusal; each caught by its test)*
 
+34. **An agent's own token is verified by tokenfuse's rules, and neither
+    verifier reads the other's token.** `VerifyAccess` checks an agent's access
+    token (RFC 9068, typ `at+jwt`, DPoP-bound by RFC 9449) in tokenfuse's order
+    (`crates/delegation` `verify_agent_token` at `ddf8dc5`): typ exactly; the key
+    the `kid` names in a set that may hold several, with the algorithm from the
+    key type; exact `iss`; a REQUIRED exact `aud`, so an empty configured
+    audience refuses every token and a token with no `aud` is refused; refused
+    when `now >= exp + 30 s` (`AgentTokenLeeway`) and `ErrNotYetValid` when
+    `iat > now + 30 s`; `sub` an `agent://` URI with something after the scheme
+    and equal to `client_id`; a `jti`; no `act`; a `cnf.jkt`; then a proof for
+    this request and moment, by that key, with a `jti` of at most 256 bytes and
+    an `ath` equal to `AccessTokenHash(token)`; then the revocation hook for the
+    token's `jti`, its agent and its `iat`, asked last; then the replay cache.
+    `VerifyRelayedAccess` makes every check but the proof. `Verify`, the
+    delegation verifier, refuses typ `at+jwt`. A nil replay cache or a nil
+    revocation hook is `ErrNotConfigured`, never a check skipped: a door that
+    has decided a signature is enough passes a hook that answers false. The
+    clock is read in whole seconds, as the Rust door reads it, and a claim the
+    Rust verifier's typed deserializer cannot read is refused here too: an `exp`
+    or `iat` that is not a whole number of seconds within 64 bits, a `unit` or
+    `org` that is not a string. Before that rule this side verified a token with
+    `"iat": "soon"`, and one with `"exp": 1e19`, which arm64 converts to a
+    token that never expires.
+
+    Where the two languages still differ, the difference is named rather than
+    hidden: the shared table records each in a `known_divergence` (an `aud`
+    left out and an `iss` written as an array, both accepted by jsonwebtoken
+    10.4.0 under tokenfuse's validation; `htm` folded and `htu` compared as a
+    string by tokenfuse's `verify_proof`, where invariant 24 holds this side).
+    *(test: `TestAnAgentTokenVerifiesAndCarriesItsUnitAndOrg`,
+    `TestADelegationTokenIsNeverAnAgentTokenAndTheReverse`,
+    `TestAnAgentTokensAudienceIsRequiredAndExact`,
+    `TestAnAgentTokenExpiresAtItsLeewayAndNotBefore`,
+    `TestAProofThatDoesNotNameThisTokenIsRefused`,
+    `TestRevocationIsAskedLastAndOnlyForATokenThatPassedEverythingElse`,
+    `TestAVerifierWithoutAReplayCacheOrARevocationHookRefusesEverything`,
+    `TestARelayedAgentTokenSkipsTheProofAndNothingElse`, and the shared table,
+    `TestEveryAgentTokenVectorIsAnsweredAsItStates`; scenarios in
+    `features/agent-token.feature`. Of the thirty new tests (beside the
+    table's generator, which runs only when asked), twenty-six went red against
+    the code before them: twenty-five against stubs that verified nothing, and
+    `TestAClaimTheRustVerifierCannotReadIsRefusedHereToo` against the first
+    version of this verifier; the four that cannot are a negative control, two
+    shape guards and the saturating arithmetic's test, each caught by a planted
+    mutant. Forty-seven mutants planted 2026-10-18 and each caught by name,
+    among them typ unchecked, an `aud` prefix accepted, an absent `aud`
+    accepted, `ath` skipped, the leeway's sign flipped on `exp` and on `iat`,
+    the replay cache skipped, revocation asked before the proof, the replay
+    recorded before revocation, a claim of the wrong type read as absent, and
+    `Verify` accepting `at+jwt`.)*
+
+    @decided 2026-10-18: each agent is issued a five-minute, DPoP-bound access
+    token by vouchryx, and every door verifies it offline with identical rules,
+    the Rust and the Go verifier held together by one shared table of cases.
+
+35. **A proof is single use at every door of a process, and the cache that
+    makes it so refuses rather than forgets.** `ReplayCache` is tokenfuse's
+    (`crates/dpop` `ReplayCache::check_and_record`): two generations of
+    `2 * Window`, consulted together, so a `jti` is remembered for as long as a
+    proof carrying it could still be fresh; a cap per generation, at which a
+    new `jti` is `ErrReplayCacheFull` and a remembered one is still
+    `ErrReplay`; and a start time that only moves forward, so a clock stepped
+    back never rotates it. It is per process and in memory, and says so on the
+    type: two doors behind a load balancer each keep their own.
+    *(test: `TestASecondUseOfOneJtiIsRefused`, `TestDistinctJtisAreAllAdmitted`,
+    `TestAJtiSurvivesEveryMomentAProofCarryingItCouldStillBeFresh`,
+    `TestAFullCacheRefusesRatherThanForgetting`,
+    `TestAClockThatWalksBackwardsDoesNotEmptyTheCache`,
+    `TestTheReplayCacheAdmitsAJtiOnceUnderConcurrentUse`, and
+    `TestEveryReplayVectorIsAnsweredAsItStates` over the table's six sequences;
+    mutants caught by name: the previous generation not consulted, a generation
+    of one window, a clock stepped back rotating it, a full cache forgetting, the
+    previous generation cleared on every rotation, the cap off by one, and the
+    lock removed, the last under `-race`)*
+
+36. **The agent-token table is the one both languages run, and a private key
+    committed here is a test-only key.** `delegation/testdata/agent-token-vectors.json`
+    is canonical here and found by its `$source` (estate-gates C14 holds every
+    vendored copy to it): fixed tokens and proofs, a clock and an expected
+    answer per case in tokenfuse's `Refusal` vocabulary, replay sequences, and
+    the constants (`typ`, the leeway, the proof window, the `jti` bound, the
+    replay generation) that the test pins to this package's own. It carries the
+    private halves of the keys that minted it, so another language can mint more;
+    every one is named `TEST_ONLY_*` inside `test_only_keys`, kept under
+    `testdata/`, and read by tests alone. Regenerating it keeps the keys:
+    `go test ./delegation -run TestRegenerateAgentTokenVectors -update-agent-vectors`.
+    *(gate: `scripts/test-keys-stay-test-only.sh`, which discovers every tracked
+    JSON object carrying a private JWK member, with five cases in
+    `gates-have-teeth.sh`: a key not named TEST_ONLY, a key outside testdata, a
+    product file naming the table, a public key outside testdata which must NOT
+    fire, and no file of test-only keys left, which must say it measured
+    nothing. test: `TestTheVectorsFileNamesItsKeysTestOnlyAndPinsTheConstants`)*

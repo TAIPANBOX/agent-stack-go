@@ -58,6 +58,12 @@ jobs:
       - name: every scenario is bound to a test
         run: ./scripts/features-are-bound.sh
 
+      # The shared agent-token table carries the private halves of the keys
+      # that minted it. A private key committed here is a test-only key:
+      # named so, under testdata/, and read by tests alone.
+      - name: private keys stay test-only
+        run: ./scripts/test-keys-stay-test-only.sh
+
       # A number in a README is a claim with no owner: it is right the day it
       # is written and the suite grows in a commit that never opens the file.
       # On 2026-08-05 four of seven such figures on it-rat.com were found

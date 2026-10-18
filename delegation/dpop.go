@@ -91,13 +91,38 @@ func NewVerifier() *Verifier {
 // `method` and `url` are what THIS server received, never what the proof says:
 // comparing the proof against itself would be no check at all.
 func (v *Verifier) Check(proof, method, url string, now time.Time) (string, error) {
+	p, err := verifyProof(proof, method, url, now)
+	if err != nil {
+		return "", err
+	}
+	if err := v.remember(p.jti, p.iat, now); err != nil {
+		return "", err
+	}
+	return p.thumb, nil
+}
+
+// presentedProof is what a proof establishes before anything remembers it:
+// who signed it, its single-use identifier, its moment, and the token it says
+// it was made to accompany (RFC 9449 section 4.2's `ath`, empty when it names
+// none). Remembering is the caller's: [Verifier] keeps its own seen-set, and
+// the agent-token door keeps a [ReplayCache] shared by every door of a process.
+type presentedProof struct {
+	thumb string
+	jti   string
+	ath   string
+	iat   time.Time
+}
+
+// verifyProof is every check [Verifier.Check] makes except remembering the
+// `jti`, in the same order and with the same errors.
+func verifyProof(proof, method, url string, now time.Time) (presentedProof, error) {
 	parts := strings.Split(proof, ".")
 	if len(parts) != 3 {
-		return "", ErrSignature
+		return presentedProof{}, ErrSignature
 	}
 	rawHeader, err := base64.RawURLEncoding.DecodeString(parts[0])
 	if err != nil {
-		return "", ErrSignature
+		return presentedProof{}, ErrSignature
 	}
 	var header struct {
 		Typ string          `json:"typ"`
@@ -105,23 +130,23 @@ func (v *Verifier) Check(proof, method, url string, now time.Time) (string, erro
 		JWK json.RawMessage `json:"jwk"`
 	}
 	if err := json.Unmarshal(rawHeader, &header); err != nil {
-		return "", ErrSignature
+		return presentedProof{}, ErrSignature
 	}
 	if header.Typ != "dpop+jwt" {
 		// The typ is what stops a proof being a token and a token being a
 		// proof. Without it, an access token this service issued could be
 		// presented back to it as a proof of possession of its own key.
-		return "", ErrSignature
+		return presentedProof{}, ErrSignature
 	}
 	if len(header.JWK) == 0 {
-		return "", ErrNoKey
+		return presentedProof{}, ErrNoKey
 	}
 	if hasPrivateMember(header.JWK) {
-		return "", ErrPrivate
+		return presentedProof{}, ErrPrivate
 	}
 	var key JWK
 	if err := json.Unmarshal(header.JWK, &key); err != nil {
-		return "", ErrSignature
+		return presentedProof{}, ErrSignature
 	}
 
 	// Verified against the key the proof itself carries, and this is the step
@@ -135,40 +160,40 @@ func (v *Verifier) Check(proof, method, url string, now time.Time) (string, erro
 	// downgrade itself to `none` any more than a token can.
 	thumb, err := Thumbprint(key)
 	if err != nil {
-		return "", ErrSignature
+		return presentedProof{}, ErrSignature
 	}
 	claims, err := VerifyWith(proof, key)
 	if err != nil {
-		return "", ErrSignature
+		return presentedProof{}, ErrSignature
 	}
 
 	if s, _ := claims["htm"].(string); s != method {
 		// RFC 9110: methods are case sensitive. Folding here would let a
 		// proof bound to POST also verify a request logged as post.
-		return "", ErrBinding
+		return presentedProof{}, ErrBinding
 	}
 	if s, _ := claims["htu"].(string); !sameURL(s, url) {
-		return "", ErrBinding
+		return presentedProof{}, ErrBinding
 	}
 	iat, ok := numeric(claims["iat"])
 	if !ok {
-		return "", ErrStale
+		return presentedProof{}, ErrStale
 	}
 	iatTime := time.Unix(iat, 0)
 	drift := now.Sub(iatTime)
 	if drift < -Window || drift > Window {
-		return "", ErrStale
+		return presentedProof{}, ErrStale
 	}
 	jti, _ := claims["jti"].(string)
 	if jti == "" {
 		// Without a `jti` there is nothing to remember, so a proof could be
 		// replayed freely inside its window.
-		return "", ErrReplay
+		return presentedProof{}, ErrReplay
 	}
-	if err := v.remember(jti, iatTime, now); err != nil {
-		return "", err
-	}
-	return thumb, nil
+	// RFC 9449 section 4.2's `ath`, read and handed back, never judged here:
+	// only the caller holds the token it must name.
+	ath, _ := claims["ath"].(string)
+	return presentedProof{thumb: thumb, jti: jti, ath: ath, iat: iatTime}, nil
 }
 
 // remember keys the seen-set by jti and holds the proof's own iat, not the
