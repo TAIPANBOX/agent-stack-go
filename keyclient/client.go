@@ -234,8 +234,6 @@ func (c *Client) Sign(ctx context.Context, name string, msg []byte, purpose stri
 	return Signature{Alg: out.Alg, Kid: out.Kid, Sig: sig}, nil
 }
 
-var errNotYet = errors.New("keyclient: not implemented")
-
 // nameRe is custody's name grammar (internal/policy): a key name, a consumer
 // name, a key set name.
 var nameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)

@@ -9,12 +9,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"math/big"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -442,10 +439,6 @@ func bodyOf(keys ...delegation.JWK) string {
 	b, _ := json.Marshal(map[string]any{"keys": keys})
 	return string(b)
 }
-
-var _ = io.EOF
-var _ = strconv.Itoa
-var _ = strings.TrimSpace
 
 func mustJSON(t *testing.T, v any) []byte {
 	t.Helper()

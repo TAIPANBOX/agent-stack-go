@@ -1,9 +1,7 @@
 package keyclient
 
 import (
-	"bytes"
 	"context"
-	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/sha256"
 	"encoding/base64"
@@ -432,12 +430,6 @@ func TestARedirectIsNotFollowedWithTheCredential(t *testing.T) {
 		t.Fatalf("the other host received %d requests, want none", got)
 	}
 }
-
-// keep the helpers the tests share referenced in one place
-var _ = bytes.MinRead
-var _ = elliptic.P256
-var _ ecdsa.PublicKey
-var _ = base64.RawURLEncoding
 
 // TestAStatementThatDisagreesWithTheRequestIsRefused covers each claim the client
 // reads back against what it asked for: a statement is refused, and nothing is

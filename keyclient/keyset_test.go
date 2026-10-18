@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
-	"net/http"
 	"testing"
 	"time"
 
@@ -317,5 +316,3 @@ func randomBytes(t *testing.T, n int) []byte {
 	}
 	return b
 }
-
-var _ = http.StatusOK
