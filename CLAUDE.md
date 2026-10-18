@@ -320,8 +320,8 @@ had one, is worse than an absent invariant.
     harness version differ only in how many layers of quoting sit between the
     text and python. So every mutation asserts it applied: a case whose edit
     changed nothing is a failure, not a pass.
-    *(gate: `scripts/gates-have-teeth.sh`, 31 cases: sixteen real faults each
-    gate must catch, six non-faults they must not, and nine subjects taken away
+    *(gate: `scripts/gates-have-teeth.sh`, 35 cases: seventeen real faults each
+    gate must catch, seven non-faults they must not, and eleven subjects taken away
     entirely, where the gate must say it measured nothing rather than report
     OK. It said 12 until `features-are-bound.sh` arrived on 2026-08-26 with four
     cases of its own, it said 16 until the version-badge half of
