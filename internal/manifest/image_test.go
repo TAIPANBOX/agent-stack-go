@@ -66,7 +66,7 @@ func TestTheImageJobPublishesOnATagOnlyAndSignsWhatItPublishes(t *testing.T) {
 		{"flavor: latest=false", "no moving tag: a deployment pins a version"},
 		{"platforms: linux/amd64,linux/arm64", "both architectures"},
 		{"push: true", "it is the job that pushes"},
-		{`cosign sign --yes "ghcr.io/taipanbox/agent-conform@${{ steps.push.outputs.digest }}"`, "the image is signed by digest, keyless, as the archives are"},
+		{`cosign sign --yes --new-bundle-format=false --use-signing-config=false "ghcr.io/taipanbox/agent-conform@${{ steps.push.outputs.digest }}"`, "the image is signed by digest, keyless, as the archives are, in the legacy format policy-controller reads"},
 		{"actions/attest-build-provenance@", "the image carries a provenance attestation"},
 		{"subject-digest: ${{ steps.push.outputs.digest }}", "the attestation is over the pushed digest"},
 		{"id-token: write", "keyless signing needs the OIDC token"},
