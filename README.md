@@ -9,7 +9,7 @@
 ![Go](https://img.shields.io/badge/go-1.27-00ADD8.svg)
 ![tests](https://img.shields.io/badge/tests-389-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
-![Status](https://img.shields.io/badge/status-v1.3.0-success.svg)
+![Status](https://img.shields.io/badge/status-v2.0.0-success.svg)
 
 <img src="docs/architecture.png" alt="agent-stack-go: the passport, event and chain packages compose one shared contract, imported by tag by Idryx, Wardryx, Mockryx, Qryx, heraldyx, scopyx, terraform-provider-taipan, vouchryx and CostCrew" width="960">
 
