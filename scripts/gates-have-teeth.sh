@@ -294,7 +294,7 @@ run_case "deps-layering: a stdlib import added to a library package" pass \
 # the rule is read as text first and named by it; the build never gets to speak.
 run_case "deps-layering: delegation imports keyclient" fail \
 	'./scripts/deps-layering.sh' \
-	"$(py 'edit("delegation/verify.go", "import (", "import (\n\t_ \"github.com/TAIPANBOX/agent-stack-go/keyclient\"")')" \
+	"$(py 'edit("delegation/verify.go", "import (", "import (\n\t_ \"github.com/TAIPANBOX/agent-stack-go/v2/keyclient\"")')" \
 	"imports keyclient"
 
 run_case "deps-layering: keyclient takes a third-party import" fail \

@@ -79,8 +79,8 @@ import (
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
-	"github.com/TAIPANBOX/agent-stack-go/chain"
-	"github.com/TAIPANBOX/agent-stack-go/event"
+	"github.com/TAIPANBOX/agent-stack-go/v2/chain"
+	"github.com/TAIPANBOX/agent-stack-go/v2/event"
 )
 
 //go:embed schemas/*.json

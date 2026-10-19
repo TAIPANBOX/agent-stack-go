@@ -1,4 +1,4 @@
-module github.com/TAIPANBOX/agent-stack-go
+module github.com/TAIPANBOX/agent-stack-go/v2
 
 go 1.27
 

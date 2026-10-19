@@ -10,7 +10,7 @@ name: release
 # checker is exactly the artifact that should be obtainable without adopting
 # anything.
 #
-# The library half needs no release: `go get github.com/TAIPANBOX/agent-stack-go`
+# The library half needs no release: `go get github.com/TAIPANBOX/agent-stack-go/v2`
 # resolves from the tag. This publishes the command only, in two shapes: the
 # per-platform archives below, and a container image of the same command
 #

@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TAIPANBOX/agent-stack-go/delegation"
+	"github.com/TAIPANBOX/agent-stack-go/v2/delegation"
 )
 
 // clock is the test's time. Every component reads it through Config.Now, so a

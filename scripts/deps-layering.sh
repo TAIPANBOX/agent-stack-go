@@ -64,7 +64,7 @@ check_pkg() {
 # reports this rule by name and not as an import cycle from the build.
 for f in delegation/*.go; do
 	case "$f" in *_test.go) continue ;; esac
-	if grep -q '"github.com/TAIPANBOX/agent-stack-go/keyclient"' "$f"; then
+	if grep -q '"github.com/TAIPANBOX/agent-stack-go/v2/keyclient"' "$f"; then
 		echo "FAIL: $f imports keyclient. delegation verifies with what the process holds and never waits on custody (CLAUDE.md invariant 31)."
 		fail=1
 	fi
@@ -80,7 +80,7 @@ check_pkg delegation
 check_pkg event github.com/gowebpki/jcs
 # keyclient (invariant 31) is the consumer side of custody: the standard library,
 # and this module's own delegation package for JWKs and thumbprints.
-check_pkg keyclient github.com/TAIPANBOX/agent-stack-go/delegation
+check_pkg keyclient github.com/TAIPANBOX/agent-stack-go/v2/delegation
 
 if [ "$fail" -ne 0 ]; then
 	echo

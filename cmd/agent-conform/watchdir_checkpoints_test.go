@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/TAIPANBOX/agent-stack-go/event"
+	"github.com/TAIPANBOX/agent-stack-go/v2/event"
 )
 
 // Scenarios: features/watch-dir.feature, the restart and checkpoint scenarios.

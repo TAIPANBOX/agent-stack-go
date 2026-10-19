@@ -31,7 +31,7 @@ go build ./...
   `SPEC.md` - a schema change here without a corresponding spec update (or
   vice versa) is a bug.
 - A breaking change requires a major version bump; consumers pin an exact
-  tag (`require github.com/TAIPANBOX/agent-stack-go vX.Y.Z`, no `replace`
+  tag (`require github.com/TAIPANBOX/agent-stack-go/v2 vX.Y.Z`, no `replace`
   directive), so nothing downstream breaks silently.
 
 ## Releasing (maintainers)

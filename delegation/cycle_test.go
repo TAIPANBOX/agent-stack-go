@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/TAIPANBOX/agent-stack-go/chain"
+	"github.com/TAIPANBOX/agent-stack-go/v2/chain"
 )
 
 // The record refuses a cyclic chain: SPEC 5.1 says `on_behalf_of` MUST be
