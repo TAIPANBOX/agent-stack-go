@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/TAIPANBOX/agent-stack-go/chain"
+	"github.com/TAIPANBOX/agent-stack-go/v2/chain"
 )
 
 // vector is one case from the cross-language table.

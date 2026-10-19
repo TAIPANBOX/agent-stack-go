@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/TAIPANBOX/agent-stack-go/chain"
-	"github.com/TAIPANBOX/agent-stack-go/delegation"
+	"github.com/TAIPANBOX/agent-stack-go/v2/chain"
+	"github.com/TAIPANBOX/agent-stack-go/v2/delegation"
 )
 
 func actors(n int) []string {

@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TAIPANBOX/agent-stack-go/delegation"
+	"github.com/TAIPANBOX/agent-stack-go/v2/delegation"
 )
 
 // JWKS is the key set a name publishes at GET /v1/jwks/{name}, cached in memory.

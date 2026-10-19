@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/TAIPANBOX/agent-stack-go/event"
+	"github.com/TAIPANBOX/agent-stack-go/v2/event"
 )
 
 func mustLoadSchemas(t *testing.T) *compiledSchemas {

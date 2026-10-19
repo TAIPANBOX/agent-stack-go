@@ -5,7 +5,7 @@
 **One Go module for Agent Passport identity and the agent-event NDJSON envelope, so every service in the stack speaks the same wire language instead of reimplementing it.**
 
 [![CI](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml/badge.svg)](https://github.com/TAIPANBOX/agent-stack-go/actions/workflows/ci.yml)
-[![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go)
+[![Go Reference](https://pkg.go.dev/badge/github.com/TAIPANBOX/agent-stack-go/v2.svg)](https://pkg.go.dev/github.com/TAIPANBOX/agent-stack-go/v2)
 ![Go](https://img.shields.io/badge/go-1.27-00ADD8.svg)
 ![tests](https://img.shields.io/badge/tests-389-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
@@ -222,7 +222,7 @@ refuse.
 ## Install
 
 ```sh
-go get github.com/TAIPANBOX/agent-stack-go@v1.3.0
+go get github.com/TAIPANBOX/agent-stack-go/v2@v1.3.0
 ```
 
 Pin to a tagged release, not to `@latest` and never to a local `replace`
@@ -374,8 +374,8 @@ package main
 import (
 	"fmt"
 
-	"github.com/TAIPANBOX/agent-stack-go/event"
-	"github.com/TAIPANBOX/agent-stack-go/passport"
+	"github.com/TAIPANBOX/agent-stack-go/v2/event"
+	"github.com/TAIPANBOX/agent-stack-go/v2/passport"
 )
 
 func main() {
@@ -410,7 +410,7 @@ func main() {
 ## Command-line tool: `agent-conform`
 
 ```sh
-go install github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform@v1.3.0
+go install github.com/TAIPANBOX/agent-stack-go/v2/cmd/agent-conform@v1.3.0
 agent-conform passport.json events.ndjson
 ```
 
@@ -700,7 +700,7 @@ next divergence is caught by CI rather than by a reader.
 This module follows SemVer, starting at `v0.1.0`. Breaking the wire contract
 (the `passport` or `event` schema) is a spec version bump, never a silent
 change; the Go types version alongside the module itself. Consumers pin it
-by tag (`go get github.com/TAIPANBOX/agent-stack-go@v1.3.0`), never a local
+by tag (`go get github.com/TAIPANBOX/agent-stack-go/v2@v1.3.0`), never a local
 `replace`.
 
 ---

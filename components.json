@@ -6,7 +6,7 @@
     "is a statement nobody can verify and carries its own `why`.",
     "",
     "THE PRODUCT HERE IS A MODULE, AND THE BINARY IS THE SMALLER HALF. Nine",
-    "sibling repositories import github.com/TAIPANBOX/agent-stack-go, which is",
+    "sibling repositories import github.com/TAIPANBOX/agent-stack-go/v2, which is",
     "why C1 in estate-gates watches for a version lag and why `runs: []` is",
     "correct: no deployment installs this, every consumer compiles it in.",
     "",
@@ -30,14 +30,14 @@
   ],
   "schema": "taipanbox.dev/components/v1",
   "repo": "TAIPANBOX/agent-stack-go",
-  "distribution": "Go module github.com/TAIPANBOX/agent-stack-go by tag; agent-conform archives with SHA256SUMS on each GitHub Release; the agent-conform image ghcr.io/taipanbox/agent-conform:<tag> (amd64, arm64, signed, attested) on each v* tag",
-  "module": "github.com/TAIPANBOX/agent-stack-go",
+  "distribution": "Go module github.com/TAIPANBOX/agent-stack-go/v2 by tag; agent-conform archives with SHA256SUMS on each GitHub Release; the agent-conform image ghcr.io/taipanbox/agent-conform:<tag> (amd64, arm64, signed, attested) on each v* tag",
+  "module": "github.com/TAIPANBOX/agent-stack-go/v2",
   "components": [
     {
       "name": "agent-conform",
       "class": "tool",
       "checked": {
-        "package": "github.com/TAIPANBOX/agent-stack-go/cmd/agent-conform",
+        "package": "github.com/TAIPANBOX/agent-stack-go/v2/cmd/agent-conform",
         "env": {},
         "reads_no_environment": true,
         "reproducible_build_flags": [
@@ -64,7 +64,7 @@
           "why": "release.yml builds it for several platforms so somebody outside this estate can check whether their service conforms, and publishes it as an image so a launcher can run `agent-conform watch-dir` against the shared events bus on a schedule. No launcher installs it yet, which is why estate.json's `runs` is empty and right today; the day one does, that field changes in the same pull request as the launcher."
         },
         "the_module_is_what_the_estate_actually_consumes": {
-          "value": "github.com/TAIPANBOX/agent-stack-go",
+          "value": "github.com/TAIPANBOX/agent-stack-go/v2",
           "why": "Nine sibling repositories import it. That is a dependency rather than an installation, so it is not a component here; C1 in estate-gates is what watches consumers for a version lag."
         }
       }
