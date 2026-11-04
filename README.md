@@ -16,11 +16,11 @@
 </div>
 
 agent-stack-go is the public, importable home of the wire types every Go
-service in the TAIPANBOX agent-governance stack (Wardryx, Mockryx, and
-future siblings) needs to speak the same identity and event language as
-TokenFuse, Idryx, Qryx, and Engram. Idryx's equivalents live under
-`internal/` and cannot be imported outside that repo, which is why this
-module exists: one shared source, not six drifting copies.
+service in the TAIPANBOX agent-governance stack (the importers are listed
+under "Where this fits in the stack") needs to speak the same identity and
+event language as TokenFuse, Idryx, Qryx, and Engram. Idryx's equivalents live
+under `internal/` and cannot be imported outside that repo, which is why this
+module exists: one shared source, not a drifting copy in every service.
 
 The stack this module supports is a defensive, self-protection system: it
 exists so an organization running AI agents can govern and audit its own
@@ -44,7 +44,10 @@ flowchart TB
   VCX ==>|"delegation_issued / denied / revoked"| BUS
   TF ==>|"agent-event NDJSON"| BUS{{"agent-event bus + Agent Passport"}}
   WX ==> BUS
-  Agent -->|"web fetch"| SCX["Scopyx: governed web egress"]
+  Agent -->|"web fetch: MCP tools/call"| BRK["TokenFuse MCP broker: the scopyx key from its vault, the run labelled from the act"]
+  BRK -->|"last hop"| SCX["Scopyx: governed web egress"]
+  BRK -->|"observed act"| TF
+  Agent -.->|"or direct, key in a header"| SCX
   SCX -->|"POST /v1/decide"| WX
   SCX ==>|"web_fetch / web_blocked"| BUS
   ENG["Engram: memory"] -->|"reflect via base_url"| TF
@@ -55,6 +58,7 @@ flowchart TB
   QX ==>|"crypto events"| BUS
   BUS ==> VX["Verdryx: quality / drift"]
   VX ==>|"quality events"| BUS
+  VX ==>|"slo_burn: a policy can hold the agent"| WX
   TF -->|"outcome-tagged traces"| VX
   MX["Mockryx: pre-prod safety rehearsal"] -->|"hostile scenarios"| TF
   MX ==>|"sim events"| BUS
@@ -65,7 +69,7 @@ flowchart TB
   HX -->|"one mail, a view and never an action"| OPS["your mailbox"]
   HX ==>|"alert_sent"| HJ[("heraldyx's own hash-chained journal, not this bus")]
   YOU(["you, in a browser over your own tunnel"]) --> GX[["Genaryx: the console over all of it"]]
-  GX -->|"signed commands: the kill, an approval, a policy"| CL
+  GX -->|"commands: the kill, an approval, a policy"| CL
   GX -->|"signed commands"| WX
   GX ==>|"console_command"| BUS
   GX -.->|"reads it"| IDX
@@ -87,7 +91,7 @@ flowchart TB
 
 - **Consumes**: the **agent-passport** spec, which its `passport` and `event` packages conform to (each checked by its own schema conformance test, against the canonical schema rather than against a copy of our own beliefs).
 - **Produces**: shared Go types for the Agent Passport document, the agent-event NDJSON envelope, and delegation-chain validation.
-- **Talks to**: imported by **Idryx**, **Wardryx**, **Mockryx**, **Qryx**, **heraldyx**, **scopyx**, **terraform-provider-taipan**, **vouchryx** and **CostCrew**, so all nine speak the same identity and event language as **TokenFuse** and **Engram**, which reach it through their own languages.
+- **Talks to**: imported by **Idryx**, **Wardryx**, **Mockryx**, **Qryx**, **heraldyx**, **scopyx**, **terraform-provider-taipan**, **vouchryx**, **CostCrew**, **keyryx** and **typryx**, so all eleven speak the same identity and event language as **TokenFuse** and **Engram**, which reach it through their own languages. (Counted on 2026-11-04 from each repository's `go.mod`, every one on `v2.0.2`.)
 
 The full stack is TokenFuse (spend), Wardryx (policy), Vouchryx (delegation), Engram (memory), Idryx (access), Qryx (crypto), Verdryx (quality), Mockryx (pre-prod), scopyx (governed web egress), CostCrew (the bill), Trailryx (the record) and heraldyx (the mail out), on the shared Agent Passport + agent-event contract (agent-stack-go / agent-passport), configured via terraform-provider-taipan and driven from Genaryx, the console over all of it.
 
@@ -113,7 +117,7 @@ conformance tests, never by a library package):
 | `passport` | `taipanbox.dev/agent-passport/v0.1` and `/v1.0` (v1.0 closes the document's top level, SPEC 6.4.1; `Parse` accepts both) | the Agent Passport document: identity, owner, runtime, provisioning parent, attestation posture |
 | `event` | `taipanbox.dev/agent-event/v1.0` (v0.1, v0.2 and v0.3 still accepted, SPEC 6.4.1) | the agent-event NDJSON envelope, plus an append-only `Writer`, tolerant `Scan`/`ReadFile` readers, and the `ChainedWriter`/`VerifyChain` SPEC 6.5 `prev_hash` integrity chain (`Canonicalize`/`ChainHash`) |
 | `chain` | n/a (a v0.2 normative rule) | delegation-chain helpers: acyclic, root-first, capped at `chain.MaxDepth` (32) entries |
-| `delegation` | RFC 8693 + RFC 9449 + RFC 9068 | the delegation TOKEN: signing, offline verification against a held key set, DPoP sender-constraint, and the `act` chain. And an agent's OWN access token (typ `at+jwt`): `VerifyAccess` checks it and its proof with tokenfuse's rules (exact `aud` required, 30 s leeway, `ath`), `VerifyRelayedAccess` checks one relayed without its proof, and `ReplayCache` makes a proof single use across the doors of a process; the two languages run one shared table of cases, `delegation/testdata/agent-token-vectors.json`. The DPoP replay cache is in memory, bounded by twice the proof freshness window in the worst case, and a restart forgets it, so a captured proof could be replayed once in the window right after. `vouchryx` issues with it, and `Revocations` is the revocation cache an enforcement point fills `Options.Revoked` from. No enforcement point checks with it yet: nothing in the estate calls `Verify` on a request path, and wiring the doors is its own wave. Standard library only |
+| `delegation` | RFC 8693 + RFC 9449 + RFC 9068 | the delegation TOKEN: signing, offline verification against a held key set, DPoP sender-constraint, and the `act` chain. And an agent's OWN access token (typ `at+jwt`): `VerifyAccess` checks it and its proof with tokenfuse's rules (exact `aud` required, 30 s leeway, `ath`), `VerifyRelayedAccess` checks one relayed without its proof, and `ReplayCache` makes a proof single use across the doors of a process; the two languages run one shared table of cases, `delegation/testdata/agent-token-vectors.json`. The DPoP replay cache is in memory, bounded by twice the proof freshness window in the worst case, and a restart forgets it, so a captured proof could be replayed once in the window right after. `vouchryx` issues with it, and `Revocations` is the revocation cache an enforcement point fills `Options.Revoked` from. Callers on a request path today: `wardryx`'s `/v1/decide` checks an agent's own token and its proof with `VerifyRelayedAccess` and asks a `Revocations` cache, when `WARDRYX_AGENT_TOKEN_ISSUER` is set (wardryx 2.3.0), and `keyryx`'s request authentication calls `VerifyToken`; TokenFuse's doors verify with its own Rust crate against the same shared table of cases. No Go service calls `Verify`, the delegation-token check, on a request path. Standard library only |
 
 ### `event.Event` - the agent-event envelope
 
@@ -747,7 +751,7 @@ by tag (`go get github.com/TAIPANBOX/agent-stack-go/v2@v2.0.2`), never a local
   `ghcr.io/taipanbox/agent-conform:<tag>` image built by `release.yml` on a `v*` tag
   (see [Running the chain verifier on a box](#running-the-chain-verifier-on-a-box-agent-conform-watch-dir))
 
-This module's package set (`passport`, `event`, `chain`, `delegation`) covers everything the
+This module's package set (`passport`, `event`, `chain`, `delegation`, `keyclient`) covers everything the
 stack's current Go consumers need; it is not a fixed, closed list, and grows
 opportunistically the same way `passport.LoadDir` did (extracted once two
 independent copies existed, not speculatively).
