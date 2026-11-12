@@ -9,7 +9,7 @@
 ![Go](https://img.shields.io/badge/go-1.27-00ADD8.svg)
 ![tests](https://img.shields.io/badge/tests-389-brightgreen.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
-![Status](https://img.shields.io/badge/status-v2.0.2-success.svg)
+![Status](https://img.shields.io/badge/status-v2.0.3-success.svg)
 
 <img src="docs/architecture.png" alt="agent-stack-go: the passport, event and chain packages compose one shared contract, imported by tag by Idryx, Wardryx, Mockryx, Qryx, heraldyx, scopyx, terraform-provider-taipan, vouchryx, CostCrew, keyryx and typryx" width="960">
 
@@ -91,7 +91,7 @@ flowchart TB
 
 - **Consumes**: the **agent-passport** spec, which its `passport` and `event` packages conform to (each checked by its own schema conformance test, against the canonical schema rather than against a copy of our own beliefs).
 - **Produces**: shared Go types for the Agent Passport document, the agent-event NDJSON envelope, and delegation-chain validation.
-- **Talks to**: imported by **Idryx**, **Wardryx**, **Mockryx**, **Qryx**, **heraldyx**, **scopyx**, **terraform-provider-taipan**, **vouchryx**, **CostCrew**, **keyryx** and **typryx**, so all eleven speak the same identity and event language as **TokenFuse** and **Engram**, which reach it through their own languages. (Counted on 2026-11-04 from each repository's `go.mod`, every one on `v2.0.2`.)
+- **Talks to**: imported by **Idryx**, **Wardryx**, **Mockryx**, **Qryx**, **heraldyx**, **scopyx**, **terraform-provider-taipan**, **vouchryx**, **CostCrew**, **keyryx** and **typryx**, so all eleven speak the same identity and event language as **TokenFuse** and **Engram**, which reach it through their own languages. (Counted on 2026-11-04 from each repository's `go.mod`, every one on `v2.0.3`.)
 
 The full stack is TokenFuse (spend), Wardryx (policy), Vouchryx (delegation), Engram (memory), Idryx (access), Qryx (crypto), Verdryx (quality), Mockryx (pre-prod), scopyx (governed web egress), CostCrew (the bill), Trailryx (the record) and heraldyx (the mail out), on the shared Agent Passport + agent-event contract (agent-stack-go / agent-passport), configured via terraform-provider-taipan and driven from Genaryx, the console over all of it.
 
@@ -226,7 +226,7 @@ refuse.
 ## Install
 
 ```sh
-go get github.com/TAIPANBOX/agent-stack-go/v2@v2.0.2
+go get github.com/TAIPANBOX/agent-stack-go/v2@v2.0.3
 ```
 
 Pin to a tagged release, not to `@latest` and never to a local `replace`
@@ -414,7 +414,7 @@ func main() {
 ## Command-line tool: `agent-conform`
 
 ```sh
-go install github.com/TAIPANBOX/agent-stack-go/v2/cmd/agent-conform@v2.0.2
+go install github.com/TAIPANBOX/agent-stack-go/v2/cmd/agent-conform@v2.0.3
 agent-conform passport.json events.ndjson
 ```
 
@@ -704,7 +704,7 @@ next divergence is caught by CI rather than by a reader.
 This module follows SemVer, starting at `v0.1.0`. Breaking the wire contract
 (the `passport` or `event` schema) is a spec version bump, never a silent
 change; the Go types version alongside the module itself. Consumers pin it
-by tag (`go get github.com/TAIPANBOX/agent-stack-go/v2@v2.0.2`), never a local
+by tag (`go get github.com/TAIPANBOX/agent-stack-go/v2@v2.0.3`), never a local
 `replace`.
 
 ---
