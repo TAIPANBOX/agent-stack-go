@@ -93,7 +93,7 @@ This repo uses **PR flow**, not push to main (unlike idryx and qryx).
    co-author trailer naming the model that actually did the work.
 4. Push the branch, open a PR with `gh`.
 5. Wait for all CI checks to go green. Fix forward, do not force-push over red.
-6. **Ask the user before merging.** Do not self-merge.
+6. **Merge when every required check is green on the current head** (squash, fresh base first). `@decided 2026-10-22`: the agent opens and merges its own PRs; tags, releases, publishing and anything that spends money still need the owner's explicit go.
 
 If you are working in parallel with another session, use `git worktree add`.
 The main checkout is shared.
