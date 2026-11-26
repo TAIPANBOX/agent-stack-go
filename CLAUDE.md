@@ -1080,3 +1080,7 @@ refactors that keep every exported signature identical, and additions to
     product file naming the table, a public key outside testdata which must NOT
     fire, and no file of test-only keys left, which must say it measured
     nothing. test: `TestTheVectorsFileNamesItsKeysTestOnlyAndPinsTheConstants`)*
+
+## Coverage floor
+
+Total test coverage measured in CI may not fall below the number in `.coverage-floor`, and that number may only rise: it was set to the first CI measurement minus one point, and is raised when coverage rises. The goal is 90% (the `# target:` line in that file); the floor is raised towards it, and the job summary prints the total, the slack above the floor and the gap to the target. *(gate: `scripts/coverage-floor.sh check` and `ratchet` in CI; teeth cases in `scripts/gates-have-teeth.sh`)*
