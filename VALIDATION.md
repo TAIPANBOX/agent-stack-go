@@ -10,7 +10,7 @@ implementations that import it, on real files they produced".
 
 ## Its own test suite
 
-389 tests across `passport`, `event`, `chain`, `delegation`, `keyclient` and `cmd/agent-conform`, and the two internal packages that gate the surface and the manifest, green on
+411 tests across `passport`, `event`, `chain`, `delegation`, `keyclient` and `cmd/agent-conform`, and the two internal packages that gate the surface and the manifest, green on
 `go test ./... -count=1`. CI additionally gates on `gofmt`, `go vet`,
 `staticcheck`, `go test -race`, `go build`, `govulncheck`, and on the two
 claims this file used to make in prose: that the vendored schemas still match
