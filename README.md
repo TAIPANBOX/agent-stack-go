@@ -649,7 +649,7 @@ projected service-account token. The file is read on every request, so a rotated
 token is used at once. A redirect is not followed, so the credential never reaches
 a host that was not named.
 
-NOT PROVEN by this package: it does not check the delegation root's signatures on
+Limits of this package: it does not check the delegation root's signatures on
 a statement. Trust in a statement and in a key set comes from the channel to
 custody, so the socket's permissions, or the cluster network with its policies,
 are the control. A cached key is valid until the cache is refreshed; a revoked
