@@ -548,7 +548,7 @@ refactors that keep every exported signature identical, and additions to
     governs until the first poll lands. And it cannot tell a vouchryx that
     restarted and forgot its whole list from one whose entries legitimately
     expired: both answer an empty list with a current cursor, and vouchryx's own
-    README names the in-memory store under NOT PROVEN for that reason.
+    README names the in-memory store under Limits for that reason.
 
 20. **Every scenario names a test that exists, and every scenario names one at
     all.** A scenario bound to nothing is a paragraph describing what somebody

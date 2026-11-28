@@ -283,7 +283,7 @@ func (d *Delegated) renew(ctx context.Context) (*certified, error) {
 // one that does not certify this key, this name and this consumer, or that does
 // not have the life asked for. It does not check the root signatures: those are
 // a verifier's to check, against the delegation root's published keys (see the
-// README's NOT PROVEN list).
+// limits in the README's keyclient section).
 func (d *Delegated) checkStatement(raw json.RawMessage, jwk delegation.JWK, notBefore, notAfter int64) error {
 	var env struct {
 		Payload    string            `json:"payload"`
